@@ -1,0 +1,25 @@
+syntax = "proto3";
+package pb;
+
+message Message {
+    oneof payload {
+        Ping ping = 1;
+        Ack ack = 2;
+        IndirectPing indirect_paing = 3;
+    }
+}
+
+message Ping {
+    string seq = 1;
+}
+
+message Ack {
+    string seq = 1;
+    string payload = 2;
+}
+
+message IndirectPing{
+    string seq = 1;
+    string target = 2;
+    bool nack = 3;
+}

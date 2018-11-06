@@ -22,13 +22,39 @@ import (
 	"strconv"
 )
 
+// status of members
+type Status int
+
+const (
+
+	// unknown status of a member
+	Unknown Status = iota
+
+	// alive status
+	Alive
+
+	// suspicious status of whether a member is dead or not
+	Suspected
+
+	// dead status
+	Dead
+)
+
 type MemberID struct{
 	ID string
 }
 
+// struct of Member
 type Member struct{
+
+	// ip address
 	Addr net.IP
+
+	// port
 	Port uint16
+
+	// status: Unknown, alive, suspected, dead
+	Status Status
 }
 
 // convert member addr and port to string
@@ -42,7 +68,7 @@ type MemberMap struct{
 }
 
 // select K random member from members
-func (m *Member) selectKRandomMember(k int) []Member{
+func (m *MemberMap) selectKRandomMember(k int) []Member{
 	return nil
 }
 

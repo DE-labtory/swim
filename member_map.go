@@ -17,9 +17,9 @@
 package swim
 
 import (
-	"sync"
 	"net"
 	"strconv"
+	"sync"
 )
 
 // status of members
@@ -40,12 +40,12 @@ const (
 	Dead
 )
 
-type MemberID struct{
+type MemberID struct {
 	ID string
 }
 
 // struct of Member
-type Member struct{
+type Member struct {
 
 	// ip address
 	Addr net.IP
@@ -58,17 +58,16 @@ type Member struct{
 }
 
 // convert member addr and port to string
-func (m *Member) Address() string{
+func (m *Member) Address() string {
 	return net.JoinHostPort(m.Addr.String(), strconv.Itoa(int(m.Port)))
 }
 
-type MemberMap struct{
+type MemberMap struct {
 	sync.RWMutex
 	members map[MemberID]*Member
 }
 
 // select K random member from members
-func (m *MemberMap) selectKRandomMember(k int) []Member{
+func (m *MemberMap) selectKRandomMember(k int) []Member {
 	return nil
 }
-

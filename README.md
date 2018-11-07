@@ -1,5 +1,5 @@
 ## SWIM: Scalabe Weakly-consistent Infection-style Process Group Membership Protocol 
-[![Build Status](https://travis-ci.org/it-chain/engine.svg?branch=develop)](https://travis-ci.org/it-chain/engine)
+[![Build Status](https://travis-ci.org/it-chain/engine.svg?branch=develop)](https://travis-ci.org/it-chain/engine) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Language](https://img.shields.io/badge/language-go-orange.svg)](https://golang.org)
 
 [SWIM Paper](http://www.cs.cornell.edu/projects/Quicksilver/public_pdfs/SWIM.pdf)
 

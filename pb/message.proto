@@ -2,24 +2,33 @@ syntax = "proto3";
 package pb;
 
 message Message {
+
+    string seq = 1;
+
     oneof payload {
-        Ping ping = 1;
-        Ack ack = 2;
-        IndirectPing indirect_paing = 3;
+        Ping ping = 2;
+        Ack ack = 3;
+        IndirectPing indirect_ping = 4;
     }
+
+    PiggyBackData piggy_back_data = 5;
 }
 
 message Ping {
-    string seq = 1;
+
 }
 
 message Ack {
-    string seq = 1;
     string payload = 2;
 }
 
 message IndirectPing{
-    string seq = 1;
     string target = 2;
     bool nack = 3;
+}
+
+message PiggyBackData {
+    oneof payload {
+
+    }
 }

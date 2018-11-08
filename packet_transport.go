@@ -48,27 +48,36 @@ type PacketTransport struct {
 	packetListener *net.UDPConn
 }
 
-func NewPacketTransport(config *PacketTransportConfig) (*PacketTransport, error) {
-	ip := net.ParseIP(config.BindAddress)
-	port := config.BindPort
-
+func NewPacketListener(ip net.IP, port int) (*net.UDPConn, error) {
 	udpAddr := &net.UDPAddr{IP: ip, Port: port}
 	udpListener, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to start UDP listener on %s port %d: %v", config.BindAddress, port, err)
+		return nil, fmt.Errorf("Failed to start UDP listener on %s port %d : %v", udpAddr.String(), port, err)
 	}
 
 	if err := setUDPRecvBuf(udpListener); err != nil {
 		return nil, fmt.Errorf("Failed to resize UDP buffer: %v", err)
 	}
 
+	return udpListener, nil
+}
+
+func NewPacketTransport(config *PacketTransportConfig) (*PacketTransport, error) {
+	ip := net.ParseIP(config.BindAddress)
+	port := config.BindPort
+
+	packetListener, err := NewPacketListener(ip, port)
+	if err != nil {
+		return nil, err
+	}
+
 	t := PacketTransport{
 		config:         config,
 		packetCh:       make(chan *Packet),
-		packetListener: udpListener,
+		packetListener: packetListener,
 	}
 
-	go t.listen(t.packetListener)
+	go t.listen()
 
 	return &t, nil
 }
@@ -96,12 +105,12 @@ func (t *PacketTransport) Shutdown() error {
 
 // udpListen is a long running goroutine that accepts incoming UDP packets and
 // hands them off to the packet channel.
-func (t *PacketTransport) listen(udpListener *net.UDPConn) {
+func (t *PacketTransport) listen() {
 	for {
 		// Do a blocking read into a fresh buffer. Grab a time stamp as
 		// close as possible to the I/O.
 		buf := make([]byte, udpPacketBufSize)
-		n, addr, err := udpListener.ReadFrom(buf)
+		n, addr, err := t.packetListener.ReadFrom(buf)
 		ts := time.Now()
 
 		if err != nil {

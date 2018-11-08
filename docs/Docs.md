@@ -145,3 +145,56 @@ protocol period `T`시간동안 `M_i`이 `M_j`에게 `ping`을 보내는데 성�
 
 이런 방식으로 `ping`을 보내게 되면 `M_i`이 가지고 있는 멤버십 리스트를 한바퀴 다 돌 때 모든 멤버들을 한 번씩은 호출하게 된다. 그래서 문제가 생긴 멤버가 생기더라도 그 멤버를 찾는데 걸리는 시간의 worst case를 `M_i`이 가지고 있는 멤버의 수로 한정할 수 있다.
 
+### Lifeguard
+
+#### Why Suspicion Mechanism
+
+Lifeguard 개념에 대해서 설명하기 전에 Suspicion 메커니즘이 왜 등장했는지에 대해서 먼저 생각해보자. 첫 번째로 *flapping problem*이 있다. **flapping problem**은 정상적으로 동작하는 노드를 실패했라고 체크하는 문제이다. 그래서 보통 로그 어디에도 해당 노드가 실패했다고 나오지 않는다. 그렇지만 네트워크 내의 노드들은 정상적으로 동작하는 노드를 실패했다고 체크해놓는다.
+
+두 번째는 네트워크 내의 정상적으로 동작하지만 속도가 느린 프로세스에 대해서 실패했다고 판단하는 false positive를 낮추기 위해서이다. 어떤 노드가 다른 노드에게 probe를 하였을 때 최초로 timeout에 걸리면 그 노드를 dead 노드라고 판단하지말고 suspect 노드로 생각한다. 위와 같이 alive와 dead 사이에 suspect라는 한 가지 상태를 더 두어서 최초로 probe를 받은 대상 노드가 속도가 느린 경우를 감안하기 때문에 Suspicion Mechanism이 없는 네트워크보다 false positive가 낮아지게 된다. 
+
+그런데 다음과 같은 상황이 있을 수 있다. suspect 노드가 자신이 suspicion되고 있다는 메세지를 정상적으로 받고 suspect 노드가 alive 메세지를 날린다. 그런데 최초로 suspect 노드에게 probe를 날린 노드가 하필 또 속도가 느려서 정상적으로 보낸 alive 메세지를 제 시간에 처리하지 못하고 timeout에 걸릴 수 있다. 이와 같이 여전히 Suspicion Mechanism만으로는 해결하지 못하는 상황들이 존재한다.
+
+#### Lifeguard comes to rescue
+
+Lifeguard의 아이디어는 다음과 같다. 내가 받기를 기대하고 있는 메세지가 오지 않올 때 내 자신이 문제일 수 있다는 것이다. 왜냐하면 네트워크의 노드들끼리 서로서로 메세지를 주고받는 상황에서 실제로 네트워크 내에 메세지가 없을 수도 있지만 다른 노드들끼리는 메세지를 잘 주고 받으면서 나에게만 제대로 전달이 안될 확률이 더 높기 때문이다.
+
+##### Lifeguard Components
+
+Lifeguard 컴포넌트는 크게 세 가지 상황에서 쓰일 수 있다.
+
+###### L1: Dynamic Fault Detector Timeouts: "Self-Awareness"
+
+동적으로 Fault Detector timeout을 조정하는 것이다. 최초로 노드가 시작할 때는 failure detector timeout을 작게 잡고 시작한다. 그리고 내가 probe나 indirect probe를 날렸을 때 응답이 잘 안돌아오면 그에 따라서 timeout을 증가시킨다. 응답이 잘 안돌아오는 것을 자기 자신이 문제라고 생각하는 것이다. Failure detector timeout말고도 Probe Interval도 증가시킨다.
+
+**Introduce Node Self-Awareness(NSA) counter**
+
+self-awareness를 정량적으로 나타내고 그에 따라서 timeout, prove interval을 증가시키기 위해 NSA counter를 사용한다. NSA counter가 높을 수록 자기 자신 노드가 느리다고 생각하는 것이다.
+
+```
+ProbeTimeout = BaseTimeout * (NSA+1)
+ProbeInterval = BaseInterval * (NSA+1)
+```
+
+위와 같이 timeout과 interval을 조정한다. 그리고 NSA counter를 바꾸는 경우는 다음과 같다.
+
+- Failed probe (no Ack): +1
+- Probe with missed *Nack*: +1
+- Refute suspicion about self: +1
+- Successful probe (get Ack): -1
+
+그리고 최대 NSA counter 값은 hashicorp에서는 8을 사용하고 있다.
+
+**Nack for more information**
+
+nack은 SWIM 프로토콜에 해당하지는 않는다. 그렇지만 Lifeguard가 자기자신에게 돌아오지 않는 메세지를 고려하기 때문에 nack이 유용하게 사용될 수 있다. 예를 들어보면 네트워크 내에 A, B, C, D가 있는데 A가 D에게 메세지를 보낸다고 하자. 이 때 아무런 응답이 다시 A에게 돌아오지 않을 때 nack을 사용하지 않는다면 B, C, D 중에 누가 문제인지 알 수 없다. 반면에 nack을 사용한다고 했을 때 nack이 B, C로 부터 돌아오면 A, B, C 끼리는 통신이 잘 되는 것을 확인할 수 있고 문제의 원인은 D에 있을 가능성이 높아진다. 또 nack이 B, C 로부터 잘 돌아오지 않는다면 A가 isolated 되있을 가능성이 높다.
+
+###### L2: Dynamic Suspicion Timeouts: "Dogpile"
+
+기본적인 원리는 L1과 비슷하게 자신에게 돌아오지 않는 메세지가 있을 때 suspection timeout을 늘리게된다. 왜냐하면 메세지가 잘 들어오지 않는 다는 것은 자기 자신이 느리거나 다른 노드들과 isolated 되있을 가능성이 크다는 것이기 때문에 suspect 노드로 부터 alive 메세지가 timeout을 방지하기 위해서 timeout을 늘린다. 그래서 방식을 정리하면 다음과 같다. 최초로 노드는 큰 suspicion timeout 값을 가지고 시작한다. 그리고 자기 자신이 많은 메세지를 받을 수록 suspicion timeout을 낮춘다.
+
+###### L3: More Timely Refutation: "Buddy System"
+
+L3의 아이디어는 suspect 노드만이 suspicion을 없앨 수 있다는 것이다. 다시 말하면 suspect 노드만이 incarnation number를 올릴 수 있다. 예를 들어 네트워크에 수많은 suspect 메세지가 있을 수 있다. 그런데 그 suspicion을 없애기 위해서는 각 suspect에 해당하는 노드가 incarnation number를 올렸을 때 없앨 수 있다. 왜냐하면 높은 incarnation number의 메세지가 노드의 상태를 override 할 수 있기 때문이다. 그래서 L3에서는 자기가 suspect 노드를 알고 있다면 suspect 노드에게 우선적으로 probe 한다는 원리이다. 이렇게 suspect 멤버 이외에 해당 suspect 멤버의 상태를 규정할 수 있는 멤버들이 없기 때문에, suspect 멤버에게 suspicion 메세지를 piggybacking 함으로써 해당 suspect 멤버가 살아있는 상태라면 스스로 incarnation number를 올릴 것이다. 결국에는 해당 suspect 멤버가 자신의 최신 상태를 gossip 함으로써 네트워크 내의 다른 멤버들도 해당 멤버의 최신상태를 업데이트 할  수 있을 것이다.
+
+

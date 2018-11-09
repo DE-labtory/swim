@@ -20,6 +20,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 )
 
 // status of members
@@ -53,8 +54,16 @@ type Member struct {
 	// port
 	Port uint16
 
-	// status: Unknown, alive, suspected, dead
-	Status Status
+	// Current member status from my point of view
+	status Status
+
+	// Time last status change happened
+	lastStatusChange time.Time
+
+	// Incarnation helps to keep the most fresh information about member status in the system
+	// which tells that suspect member confirming that it is alive, and only when suspect
+	// got suspicion message, that member can increments incarnation
+	incarnation uint32
 }
 
 // convert member addr and port to string

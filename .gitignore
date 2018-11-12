@@ -23,3 +23,6 @@ images/*.xml
 
 # vim stack dump
 vim.exe.stackdump
+
+# go mod
+go.sum

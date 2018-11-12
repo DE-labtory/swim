@@ -1,4 +1,4 @@
-package swim
+package cmd
 
 import "github.com/urfave/cli"
 

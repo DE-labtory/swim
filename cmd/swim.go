@@ -1,4 +1,4 @@
-package swim
+package cmd
 
 import (
 	"log"

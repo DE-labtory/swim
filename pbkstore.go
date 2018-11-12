@@ -104,7 +104,7 @@ func (p *PriorityPBStore) Get() ([]byte, error) {
 	// If not, push it again after increment priority
 	item.priority = item.priority + 1
 	if item.priority < p.maxLocalCount {
-		p.q.Push(item)
+		heap.Push(&p.q, item)
 	}
 
 	return b, nil

@@ -10,23 +10,23 @@ var startCmd = cli.Command{
 	},
 }
 
-var addCmd = cli.Command{
-	Name:        "add",
+var joinCmd = cli.Command{
+	Name:        "join",
 	Aliases:     []string{"a"},
-	Usage:       "option for add",
+	Usage:       "option for join",
 	Subcommands: cli.Commands{},
 }
 
 func Cmd() cli.Commands {
-	addCmd.Subcommands = append(addCmd.Subcommands, member())
+	joinCmd.Subcommands = append(joinCmd.Subcommands, member())
 
-	return cli.Commands{addCmd, startCmd}
+	return cli.Commands{joinCmd, startCmd}
 }
 
 func member() cli.Command {
 	return cli.Command{
 		Name:  "member",
-		Usage: "swim add member [--address <ip:port>]",
+		Usage: "swim join member [--address <ip:port>]",
 		Action: func(c *cli.Context) error {
 			return nil
 		},

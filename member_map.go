@@ -17,27 +17,32 @@
 package swim
 
 import (
+	"errors"
 	"net"
 	"strconv"
 	"sync"
 	"time"
+
+	"math/rand"
 )
 
-// status of members
+var ErrEmptyMemberID = errors.New("MemberID is empty")
+
+// Status of members
 type Status int
 
 const (
 
-	// unknown status of a member
+	// Unknown status of a member
 	Unknown Status = iota
 
-	// alive status
+	// Alive status
 	Alive
 
-	// suspicious status of whether a member is dead or not
+	// Suspicious status of whether a member is dead or not
 	Suspected
 
-	// dead status
+	// Dead status
 	Dead
 )
 
@@ -45,38 +50,179 @@ type MemberID struct {
 	ID string
 }
 
-// struct of Member
+// Struct of Member
 type Member struct {
 
-	// ip address
+	// Id of member
+	ID MemberID
+
+	// Ip address
 	Addr net.IP
 
-	// port
+	// Port
 	Port uint16
 
 	// Current member status from my point of view
-	status Status
+	Status Status
 
 	// Time last status change happened
-	lastStatusChange time.Time
+	LastStatusChange time.Time
 
 	// Incarnation helps to keep the most fresh information about member status in the system
 	// which tells that suspect member confirming that it is alive, and only when suspect
 	// got suspicion message, that member can increments incarnation
-	incarnation uint32
+	Incarnation uint32
 }
 
-// convert member addr and port to string
+// Convert member addr and port to string
 func (m *Member) Address() string {
 	return net.JoinHostPort(m.Addr.String(), strconv.Itoa(int(m.Port)))
 }
 
-type MemberMap struct {
-	sync.RWMutex
-	members map[MemberID]*Member
+// Get
+func (m *Member) GetID() MemberID {
+	return m.ID
 }
 
-// select K random member from members
-func (m *MemberMap) selectKRandomMember(k int) []Member {
+type MemberMap struct {
+	lock    sync.RWMutex
+	members map[MemberID]Member
+
+	// This is for selecting k random member based on round-robin
+	waitingMembers []MemberID
+}
+
+func NewMemberMap() *MemberMap {
+	return &MemberMap{
+		members:        make(map[MemberID]Member),
+		waitingMembers: make([]MemberID, 0),
+		lock:           sync.RWMutex{},
+	}
+}
+
+// Select K random memberID from waitingMembers(length of returning member can be lower than k).
+// ** WaitingMembers are shuffled every time when members are updated **, so just returning first K item in waitingMembers is same as
+// selecting k random membersID.
+func (m *MemberMap) SelectKRandomMemberID(k int) []MemberID {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	// If length of members is lower then k,
+	// return current waitingMembers and reset waitingMembers.
+	if len(m.waitingMembers) < k {
+		kMembers := m.waitingMembers
+		defer func() { m.waitingMembers = resetWaitingMembersID(m.members) }()
+		return kMembers
+	}
+
+	// Remove first k membersID.
+	kMembers := m.waitingMembers[:k]
+	m.waitingMembers = m.waitingMembers[k:len(m.waitingMembers)]
+
+	if len(m.waitingMembers) == 0 {
+		m.waitingMembers = resetWaitingMembersID(m.members)
+	}
+
+	return kMembers
+}
+
+func (m *MemberMap) GetMembers() []Member {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	members := make([]Member, 0)
+	for _, v := range m.members {
+		members = append(members, v)
+	}
+
+	return members
+}
+
+func (m *MemberMap) AddMember(member Member) error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	// If id is empty return error
+	if member.GetID().ID == "" {
+		return ErrEmptyMemberID
+	}
+
+	// Check whether it is already exist
+	exMem, ok := m.members[member.GetID()]
+	if ok {
+		// Apply override Rule
+		member = override(member, exMem)
+	}
+
+	m.members[member.GetID()] = member
+
+	m.waitingMembers = resetWaitingMembersID(m.members)
 	return nil
+}
+
+// Update member and update waitingMembers
+// todo
+func (m *MemberMap) UpdateMember(member Member) error {
+	return nil
+}
+
+// Remove member and update waitingMembers
+// todo
+func (m *MemberMap) RemoveMember(member Member) error {
+	return nil
+}
+
+// This function will be called when memberMap updated
+// Create waiting memberID List and shuffle
+func resetWaitingMembersID(memberMap map[MemberID]Member) []MemberID {
+
+	// Convert Map to List
+	waitingMembersID := make([]MemberID, 0)
+	for _, member := range memberMap {
+		waitingMembersID = append(waitingMembersID, member.ID)
+	}
+
+	// Shuffle the list
+	r := rand.New(rand.NewSource(time.Now().Unix()))
+	for n := len(waitingMembersID); n > 0; n-- {
+		randIndex := r.Intn(n)
+		waitingMembersID[n-1], waitingMembersID[randIndex] = waitingMembersID[randIndex], waitingMembersID[n-1]
+	}
+
+	return waitingMembersID
+}
+
+// Override will override member status based on incarnation number and status.
+//
+// Overriding rules are following...
+//
+// 1. {Alive Ml, inc=i} overrides
+//      - {Suspect Ml, inc=j}, i>j
+//      - {Alive Ml, inc=j}, i>j
+//
+// 2. {Suspect Ml, inc=i} overrides
+//      - {Suspect Ml, inc=j}, i>j
+//      - {Alive Ml, inc=j}, i>=j
+//
+// 3. {Dead Ml, inc=i} overrides
+//      - {Suspect Ml, inc=j}, i>j
+//      - {Alive Ml, inc=j}, i>j
+//
+func override(newMem Member, existingMem Member) Member {
+
+	// Check i, j
+	// All cases if incarnation number is higher then another member,
+	// override it.
+	if newMem.Incarnation > existingMem.Incarnation {
+		return newMem
+	}
+
+	// member2 == member1 case suspect status can override alive
+	if newMem.Incarnation == existingMem.Incarnation {
+		if newMem.Status == Suspected && existingMem.Status == Alive {
+			return newMem
+		}
+	}
+
+	return existingMem
 }

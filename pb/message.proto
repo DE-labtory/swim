@@ -29,6 +29,20 @@ message IndirectPing{
 
 message PiggyBackData {
     oneof payload {
-
+        Alive alive = 1;
+        Suspect suspect = 2;
+        Dead dead = 3;
     }
+}
+
+message Alive {
+
+}
+
+message Suspect {
+
+}
+
+message Dead {
+
 }

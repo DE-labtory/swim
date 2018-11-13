@@ -130,11 +130,10 @@ protocol period `T`시간동안 `M_i`이 `M_j`에게 `ping`을 보내는데 성�
 
 * {Suspect Ml, inc=i} overrides
     - {Suspect Ml, inc=j}, i>j
-    - {Alive Ml, inc=j}, ij
+    - {Alive Ml, inc=j}, i>=j
 
 * {Confirm Ml, inc=i} overrides
-    - {Alive Ml, inc=j}, any j
-    - {Alive Ml, inc=j}, any j
+    - {Alive Ml, inc=j}, i>=j
 ```
 
 이와 같은 방식으로 각 메시지가 도착했을 때 각 멤버의 상태를 수정한다.

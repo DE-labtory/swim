@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"time"
+	"sync"
 )
 
 const (
@@ -46,6 +47,8 @@ type PacketTransport struct {
 	config         *PacketTransportConfig
 	packetCh       chan *Packet
 	packetListener *net.UDPConn
+	isShutDown     bool
+	lock           sync.RWMutex
 }
 
 func NewPacketListener(ip net.IP, port int) (*net.UDPConn, error) {
@@ -75,6 +78,8 @@ func NewPacketTransport(config *PacketTransportConfig) (*PacketTransport, error)
 		config:         config,
 		packetCh:       make(chan *Packet),
 		packetListener: packetListener,
+		isShutDown:     false,
+		lock:           sync.RWMutex{},
 	}
 
 	go t.listen()
@@ -100,6 +105,10 @@ func (t *PacketTransport) PacketCh() <-chan *Packet {
 }
 
 func (t *PacketTransport) Shutdown() error {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	t.isShutDown = true
 	return t.packetListener.Close()
 }
 
@@ -112,6 +121,10 @@ func (t *PacketTransport) listen() {
 		buf := make([]byte, udpPacketBufSize)
 		n, addr, err := t.packetListener.ReadFrom(buf)
 		ts := time.Now()
+
+		if t.isShutDown {
+			break
+		}
 
 		if err != nil {
 			fmt.Printf("[ERR] Error reading UDP packet: %v", err)

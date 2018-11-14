@@ -207,7 +207,6 @@ func TestMember_override_dead_suspect(t *testing.T) {
 
 // 6. {Dead Ml, inc=i} overrides {Alive Ml, inc=j}, any j
 func TestMember_override_dead_alive(t *testing.T) {
-
 	m1 := Member{
 		Status:      Dead,
 		Incarnation: 2,

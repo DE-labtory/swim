@@ -160,6 +160,40 @@ func (m *MemberMap) AddMember(member Member) error {
 	return nil
 }
 
+// Override will override member status based on incarnation number and status.
+//
+// Overriding rules are following...
+//
+// 1. {Alive Ml, inc=i} overrides
+//      - {Suspect Ml, inc=j}, i>j
+//      - {Alive Ml, inc=j}, i>j
+//
+// 2. {Suspect Ml, inc=i} overrides
+//      - {Suspect Ml, inc=j}, i>j
+//      - {Alive Ml, inc=j}, i>=j
+//
+// 3. {Dead Ml, inc=i} overrides
+//      - {Suspect Ml, inc=j}, i>j
+//      - {Alive Ml, inc=j}, i>j
+func override(newMem Member, existingMem Member) Member {
+
+	// Check i, j
+	// All cases if incarnation number is higher then another member,
+	// override it.
+	if newMem.Incarnation > existingMem.Incarnation {
+		return newMem
+	}
+
+	// member2 == member1 case suspect status can override alive
+	if newMem.Incarnation == existingMem.Incarnation {
+		if newMem.Status == Suspected && existingMem.Status == Alive {
+			return newMem
+		}
+	}
+
+	return existingMem
+}
+
 // Update member and update waitingMembers
 // todo
 func (m *MemberMap) UpdateMember(member Member) error {
@@ -192,37 +226,8 @@ func resetWaitingMembersID(memberMap map[MemberID]Member) []MemberID {
 	return waitingMembersID
 }
 
-// Override will override member status based on incarnation number and status.
-//
-// Overriding rules are following...
-//
-// 1. {Alive Ml, inc=i} overrides
-//      - {Suspect Ml, inc=j}, i>j
-//      - {Alive Ml, inc=j}, i>j
-//
-// 2. {Suspect Ml, inc=i} overrides
-//      - {Suspect Ml, inc=j}, i>j
-//      - {Alive Ml, inc=j}, i>=j
-//
-// 3. {Dead Ml, inc=i} overrides
-//      - {Suspect Ml, inc=j}, i>j
-//      - {Alive Ml, inc=j}, i>j
-//
-func override(newMem Member, existingMem Member) Member {
+// Delete all dead node,
+// Reset waiting list,
+func (m *MemberMap) reset() {
 
-	// Check i, j
-	// All cases if incarnation number is higher then another member,
-	// override it.
-	if newMem.Incarnation > existingMem.Incarnation {
-		return newMem
-	}
-
-	// member2 == member1 case suspect status can override alive
-	if newMem.Incarnation == existingMem.Incarnation {
-		if newMem.Status == Suspected && existingMem.Status == Alive {
-			return newMem
-		}
-	}
-
-	return existingMem
 }

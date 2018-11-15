@@ -21,10 +21,18 @@ import (
 )
 
 type Config struct {
+
+	// The maximum number of times the same piggyback data can be queried
 	MaxlocalCount int
-	T             int
-	AckTimeOut    int
-	K             int
+
+	// T is the the period of the probe
+	T int
+
+	// Timeout of ack after ping to a member
+	AckTimeOut int
+
+	// K is the number of members to send indirect ping
+	K int
 }
 
 type SWIM struct {

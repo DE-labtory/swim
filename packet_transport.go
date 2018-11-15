@@ -19,8 +19,8 @@ package swim
 import (
 	"fmt"
 	"net"
-	"time"
 	"sync"
+	"time"
 )
 
 const (
@@ -122,7 +122,7 @@ func (t *PacketTransport) listen() {
 		n, addr, err := t.packetListener.ReadFrom(buf)
 		ts := time.Now()
 
-		if t.isShutDown {
+		if t.checkShutDown() {
 			break
 		}
 
@@ -145,6 +145,13 @@ func (t *PacketTransport) listen() {
 			Timestamp: ts,
 		}
 	}
+}
+
+func (t *PacketTransport) checkShutDown() bool {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	return t.isShutDown
 }
 
 // setUDPRecvBuf is used to resize the UDP receive window. The function

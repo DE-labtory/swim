@@ -169,11 +169,30 @@ type MessageHandler interface {
 
 // The handle function does two things.
 //
-// 1. Process Ping, Ack, Indirect-ping messages.
-// 2. Update the member map using the piggyback-data contained in the message.
-//  2-1. Check if member is me or not.
-// 	2-2. Change status of member.
-// 	2-3. If the state of the member map changes, store new status in the piggyback store.
+// 1. Update the member map using the piggyback-data contained in the message.
+//  1-1. Check if member is me or not.
+// 	1-2. Change status of member.
+// 	1-3. If the state of the member map changes, store new status in the piggyback store.
+//
+// 2. Process Ping, Ack, Indirect-ping messages.
+//
 func (s *SWIM) handle(msg pb.Message) {
+
+	s.handlePbk(msg.PiggyBack)
+
+	switch msg.Payload.(type) {
+	case *pb.Message_Ping:
+		// handle ping
+	case *pb.Message_Ack:
+		// handle ack
+	case *pb.Message_IndirectPing:
+		// handle indirect ping
+	default:
+
+	}
+}
+
+// handle piggyback related to member status
+func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 
 }

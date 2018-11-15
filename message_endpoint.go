@@ -12,6 +12,12 @@ import (
 var ErrSendFailed = errors.New("Error send failed")
 var ErrSendTimeout = errors.New("Error send timeout")
 var ErrUnreachable = errors.New("Error this shouldn't reach")
+var ErrInvalidMessage = errors.New("Error invalid message")
+
+type Respond struct {
+	Addr string
+	Message pb.Message
+}
 
 type MessageEndpointConfig struct {
 	EncryptionEnabled bool
@@ -23,17 +29,19 @@ type MessageEndpointConfig struct {
 type MessageEndpoint struct {
 	config MessageEndpointConfig
 	transport                  UDPTransport
-	memberStatusChangeDelegate MemberStatusChangeDelegate
+	messageHandler MessageHandler
 	awareness                  Awareness
+	syncRespond chan Respond
 	quit chan struct{}
 }
 
-func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, delegate MemberStatusChangeDelegate, awareness Awareness) *MessageEndpoint {
+func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, messageHandler MessageHandler, awareness Awareness) *MessageEndpoint {
 	return &MessageEndpoint{
 		config: config,
 		transport:transport,
-		memberStatusChangeDelegate:delegate,
-		awareness:awareness,
+		messageHandler: messageHandler,
+		awareness: awareness,
+		syncRespond: make(chan Respond),
 		quit: make(chan struct{}),
 	}
 }
@@ -44,10 +52,18 @@ func (m *MessageEndpoint) Listen() {
 	for {
 		select {
 		case packet := <- m.transport.PacketCh():
+			from := packet.Addr.String()
+
+			// validate packet then convert it to message
 			msg, err := m.processPacket(*packet)
 			if err != nil {
 				iLogger.Error(nil, err.Error())
 			}
+
+			// send valid message to syncRespond channel for
+			// this message is maybe what SyncSend is waiting for
+			m.syncRespond <- Respond{Addr:from, Message: msg}
+
 			m.handleMessage(msg)
 
 		case <-m.quit:
@@ -79,13 +95,24 @@ func (m *MessageEndpoint) Shutdown() {
 	m.quit <- struct{}{}
 }
 
+func validateMessage(msg pb.Message) bool {
+	return msg.Seq != "" &&
+		msg.Payload != nil &&
+		msg.PiggyBack != nil
+}
+
 // with given message handleMessage determine which logic should be executed
 // based on the message type. Additionally handleMessage can call MemberDelegater
 // to update member status and encrypt messages
-func (m *MessageEndpoint) handleMessage(msg pb.Message) {
+func (m *MessageEndpoint) handleMessage(msg pb.Message) error {
 	// validate message
+	if validateMessage(msg) {
+		// call delegate func to update members states
+		m.messageHandler.handle(msg)
+		return nil
+	}
 
-	// call delegate func to update members states
+	return ErrInvalidMessage
 }
 
 // determineSendTimeout if @timeout is given, then use this value as timeout value
@@ -103,8 +130,7 @@ func (m *MessageEndpoint) determineSendTimeout(timeout time.Duration) time.Durat
 // if @timeout is provided then set send timeout to given parameters, if not then calculate
 // timeout based on the its awareness
 func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Duration) (pb.Message, error) {
-	onSucc := make(chan struct{})
-	onErr := make(chan struct{})
+	onSucc := make(chan pb.Message)
 
 	timeout := m.determineSendTimeout(interval)
 
@@ -113,25 +139,29 @@ func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Du
 		return pb.Message{}, err
 	}
 
+	_, err = m.transport.WriteTo(d, addr)
+	if err != nil {
+		iLogger.Info(nil, err.Error())
+		return pb.Message{}, err
+	}
+
 	go func() {
-		_, err := m.transport.WriteTo(d, addr)
-		if err != nil {
-			iLogger.Info(nil, err.Error())
-			onErr <- struct{}{}
-			return
+		for {
+			select {
+			case res := <-m.syncRespond:
+				if res.Addr == addr {
+					onSucc <- res.Message
+				}
+			}
 		}
-		onSucc <- struct{}{}
 	}()
 
 	// start timer
 	T := time.NewTimer(timeout)
 
 	select {
-	case <- onSucc:
-
-	case <- onErr:
-		return pb.Message{}, ErrSendFailed
-
+	case msg := <- onSucc:
+		return msg, nil
 	case <- T.C:
 		return pb.Message{}, ErrSendTimeout
 	}

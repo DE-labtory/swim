@@ -18,6 +18,7 @@ type MessageEndpoint struct {
 	transport                  UDPTransport
 	memberStatusChangeDelegate MemberStatusChangeDelegate
 	awareness                  Awareness
+	quit chan struct{}
 }
 
 func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, delegate MemberStatusChangeDelegate, awareness Awareness) *MessageEndpoint {
@@ -26,6 +27,7 @@ func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, de
 		transport:transport,
 		memberStatusChangeDelegate:delegate,
 		awareness:awareness,
+		quit: make(chan struct{}),
 	}
 }
 
@@ -40,6 +42,9 @@ func (m *MessageEndpoint) Listen() {
 
 			}
 			m.handleMessage(msg)
+
+		case <-m.quit:
+			return
 		}
 	}
 }
@@ -59,12 +64,20 @@ func (m *MessageEndpoint) processPacket(packet Packet) (pb.Message, error) {
 	return *msg, nil
 }
 
+func (m *MessageEndpoint) Shutdown() {
+	// close transport first
+	m.transport.Shutdown()
+
+	// then close message endpoint
+	m.quit <- struct{}{}
+}
+
 // with given message handleMessage determine which logic should be executed
 // based on the message type. Additionally handleMessage can call MemberDelegater
 // to update member status and encrypt messages
 func (m *MessageEndpoint) handleMessage(msg pb.Message) {
 	// validate message
-	
+
 	// call delegate func to update members states
 }
 

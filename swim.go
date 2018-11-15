@@ -16,7 +16,9 @@
 
 package swim
 
-import "time"
+import (
+	"time"
+)
 
 type Config struct {
 	MaxlocalCount int
@@ -38,6 +40,11 @@ type SWIM struct {
 }
 
 func New(config *Config) *SWIM {
+
+	if config.T < config.AckTimeOut {
+		panic("T time must be longer than ack time-out")
+	}
+
 	return &SWIM{
 		config:    config,
 		memberMap: NewMemberMap(),
@@ -62,7 +69,7 @@ func (s *SWIM) Gossip(msg []byte) {
 
 // Shutdown the running swim.
 func (s *SWIM) ShutDown() {
-
+	s.quitFD <- struct{}{}
 }
 
 // Total Failure Detection is performed for each` T`. (ref: https://github.com/DE-labtory/swim/edit/develop/docs/Docs.md)
@@ -123,17 +130,17 @@ func (s *SWIM) probe(member Member) {
 		return
 	}
 
-	end := make(chan bool, 1)
+	end := make(chan struct{}, 1)
 	defer close(end)
 
 	go func() {
 
 		// Ping to member
-
-		end <- true
+		time.Sleep(1 * time.Second)
+		end <- struct{}{}
 	}()
 
-	T := time.NewTimer(time.Duration(s.config.T))
+	T := time.NewTimer(time.Millisecond * time.Duration(s.config.T))
 
 	select {
 	case <-end:
@@ -151,10 +158,10 @@ type MemberMapUpdatedDelegate interface {
 }
 
 // Update member
-// 1. Check
-// 2.
-// 3.
-
+//
+// 1. Check if member is me or not.
+// 2. Change status of member.
+// 3. If the state of the member map changes, store new status in the piggyback store.
 func (s *SWIM) updateMember() {
 
 }

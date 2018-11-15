@@ -15,3 +15,49 @@
  */
 
 package swim
+
+import (
+	"sync"
+	"testing"
+	"time"
+)
+
+func TestSWIM_ShutDown(t *testing.T) {
+	s := New(&Config{
+		K:             2,
+		T:             4000,
+		AckTimeOut:    1000,
+		MaxlocalCount: 1,
+	})
+
+	m := NewMemberMap()
+	m.AddMember(Member{
+		ID: MemberID{
+			ID: "1",
+		},
+	})
+
+	m.AddMember(Member{
+		ID: MemberID{
+			ID: "2",
+		},
+	})
+
+	s.memberMap = m
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	// Check whether the startFailureDetector ends or not
+	go func() {
+		s.startFailureDetector()
+		wg.Done()
+	}()
+
+	time.Sleep(5 * time.Second)
+
+	// End startFailureDetector
+	s.ShutDown()
+
+	wg.Wait()
+}

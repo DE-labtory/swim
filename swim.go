@@ -18,6 +18,8 @@ package swim
 
 import (
 	"time"
+
+	"github.com/DE-labtory/swim/pb"
 )
 
 type Config struct {
@@ -160,16 +162,18 @@ func (s *SWIM) probe(member Member) {
 	}
 }
 
-// Delegate interface to notify status change of the member
-type MemberMapUpdatedDelegate interface {
-	updateMember()
+// handler interface to handle received message
+type MessageHandler interface {
+	handle(msg pb.Message)
 }
 
-// Update member
+// The handle function does two things.
 //
-// 1. Check if member is me or not.
-// 2. Change status of member.
-// 3. If the state of the member map changes, store new status in the piggyback store.
-func (s *SWIM) updateMember() {
+// 1. Process Ping, Ack, Indirect-ping messages.
+// 2. Update the member map using the piggyback-data contained in the message.
+//  2-1. Check if member is me or not.
+// 	2-2. Change status of member.
+// 	2-3. If the state of the member map changes, store new status in the piggyback store.
+func (s *SWIM) handle(msg pb.Message) {
 
 }

@@ -11,7 +11,7 @@ message Message {
         IndirectPing indirect_ping = 4;
     }
 
-    PiggyBackData piggy_back_data = 5;
+    PiggyBack piggyBack = 5;
 }
 
 message Ping {
@@ -27,22 +27,12 @@ message IndirectPing{
     bool nack = 3;
 }
 
-message PiggyBackData {
-    oneof payload {
-        Alive alive = 1;
-        Suspect suspect = 2;
-        Dead dead = 3;
-    }
-}
+message PiggyBack{
 
-message Alive {
+    string id = 1;
+    // status
+    // 0 - Unknown, 1 - Alive, 2 - Suspected, 3 - Dead
+    int32 status = 2;
 
-}
-
-message Suspect {
-
-}
-
-message Dead {
-
+    string address = 3;
 }

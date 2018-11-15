@@ -28,7 +28,7 @@ type Message struct {
 	//	*Message_Ack
 	//	*Message_IndirectPing
 	Payload              isMessage_Payload `protobuf_oneof:"payload"`
-	PiggyBackData        *PiggyBackData    `protobuf:"bytes,5,opt,name=piggy_back_data,json=piggyBackData,proto3" json:"piggy_back_data,omitempty"`
+	PiggyBack            *PiggyBack        `protobuf:"bytes,5,opt,name=piggyBack,proto3" json:"piggyBack,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
 	XXX_sizecache        int32             `json:"-"`
@@ -116,9 +116,9 @@ func (m *Message) GetIndirectPing() *IndirectPing {
 	return nil
 }
 
-func (m *Message) GetPiggyBackData() *PiggyBackData {
+func (m *Message) GetPiggyBack() *PiggyBack {
 	if m != nil {
-		return m.PiggyBackData
+		return m.PiggyBack
 	}
 	return nil
 }
@@ -333,312 +333,91 @@ func (m *IndirectPing) GetNack() bool {
 	return false
 }
 
-type PiggyBackData struct {
-	// Types that are valid to be assigned to Payload:
-	//	*PiggyBackData_Alive
-	//	*PiggyBackData_Suspect
-	//	*PiggyBackData_Dead
-	Payload              isPiggyBackData_Payload `protobuf_oneof:"payload"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
+type PiggyBack struct {
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// status
+	// 0 - Unknown, 1 - Alive, 2 - Suspected, 3 - Dead
+	Status               int32    `protobuf:"varint,2,opt,name=status,proto3" json:"status,omitempty"`
+	Address              string   `protobuf:"bytes,3,opt,name=address,proto3" json:"address,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *PiggyBackData) Reset()         { *m = PiggyBackData{} }
-func (m *PiggyBackData) String() string { return proto.CompactTextString(m) }
-func (*PiggyBackData) ProtoMessage()    {}
-func (*PiggyBackData) Descriptor() ([]byte, []int) {
+func (m *PiggyBack) Reset()         { *m = PiggyBack{} }
+func (m *PiggyBack) String() string { return proto.CompactTextString(m) }
+func (*PiggyBack) ProtoMessage()    {}
+func (*PiggyBack) Descriptor() ([]byte, []int) {
 	return fileDescriptor_33c57e4bae7b9afd, []int{4}
 }
 
-func (m *PiggyBackData) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_PiggyBackData.Unmarshal(m, b)
+func (m *PiggyBack) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_PiggyBack.Unmarshal(m, b)
 }
-func (m *PiggyBackData) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_PiggyBackData.Marshal(b, m, deterministic)
+func (m *PiggyBack) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_PiggyBack.Marshal(b, m, deterministic)
 }
-func (m *PiggyBackData) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PiggyBackData.Merge(m, src)
+func (m *PiggyBack) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PiggyBack.Merge(m, src)
 }
-func (m *PiggyBackData) XXX_Size() int {
-	return xxx_messageInfo_PiggyBackData.Size(m)
+func (m *PiggyBack) XXX_Size() int {
+	return xxx_messageInfo_PiggyBack.Size(m)
 }
-func (m *PiggyBackData) XXX_DiscardUnknown() {
-	xxx_messageInfo_PiggyBackData.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_PiggyBackData proto.InternalMessageInfo
-
-type isPiggyBackData_Payload interface {
-	isPiggyBackData_Payload()
+func (m *PiggyBack) XXX_DiscardUnknown() {
+	xxx_messageInfo_PiggyBack.DiscardUnknown(m)
 }
 
-type PiggyBackData_Alive struct {
-	Alive *Alive `protobuf:"bytes,1,opt,name=alive,proto3,oneof"`
-}
+var xxx_messageInfo_PiggyBack proto.InternalMessageInfo
 
-type PiggyBackData_Suspect struct {
-	Suspect *Suspect `protobuf:"bytes,2,opt,name=suspect,proto3,oneof"`
-}
-
-type PiggyBackData_Dead struct {
-	Dead *Dead `protobuf:"bytes,3,opt,name=dead,proto3,oneof"`
-}
-
-func (*PiggyBackData_Alive) isPiggyBackData_Payload() {}
-
-func (*PiggyBackData_Suspect) isPiggyBackData_Payload() {}
-
-func (*PiggyBackData_Dead) isPiggyBackData_Payload() {}
-
-func (m *PiggyBackData) GetPayload() isPiggyBackData_Payload {
+func (m *PiggyBack) GetId() string {
 	if m != nil {
-		return m.Payload
+		return m.Id
 	}
-	return nil
+	return ""
 }
 
-func (m *PiggyBackData) GetAlive() *Alive {
-	if x, ok := m.GetPayload().(*PiggyBackData_Alive); ok {
-		return x.Alive
+func (m *PiggyBack) GetStatus() int32 {
+	if m != nil {
+		return m.Status
 	}
-	return nil
+	return 0
 }
 
-func (m *PiggyBackData) GetSuspect() *Suspect {
-	if x, ok := m.GetPayload().(*PiggyBackData_Suspect); ok {
-		return x.Suspect
+func (m *PiggyBack) GetAddress() string {
+	if m != nil {
+		return m.Address
 	}
-	return nil
+	return ""
 }
-
-func (m *PiggyBackData) GetDead() *Dead {
-	if x, ok := m.GetPayload().(*PiggyBackData_Dead); ok {
-		return x.Dead
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*PiggyBackData) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _PiggyBackData_OneofMarshaler, _PiggyBackData_OneofUnmarshaler, _PiggyBackData_OneofSizer, []interface{}{
-		(*PiggyBackData_Alive)(nil),
-		(*PiggyBackData_Suspect)(nil),
-		(*PiggyBackData_Dead)(nil),
-	}
-}
-
-func _PiggyBackData_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*PiggyBackData)
-	// payload
-	switch x := m.Payload.(type) {
-	case *PiggyBackData_Alive:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Alive); err != nil {
-			return err
-		}
-	case *PiggyBackData_Suspect:
-		b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Suspect); err != nil {
-			return err
-		}
-	case *PiggyBackData_Dead:
-		b.EncodeVarint(3<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Dead); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("PiggyBackData.Payload has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _PiggyBackData_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*PiggyBackData)
-	switch tag {
-	case 1: // payload.alive
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(Alive)
-		err := b.DecodeMessage(msg)
-		m.Payload = &PiggyBackData_Alive{msg}
-		return true, err
-	case 2: // payload.suspect
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(Suspect)
-		err := b.DecodeMessage(msg)
-		m.Payload = &PiggyBackData_Suspect{msg}
-		return true, err
-	case 3: // payload.dead
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(Dead)
-		err := b.DecodeMessage(msg)
-		m.Payload = &PiggyBackData_Dead{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _PiggyBackData_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*PiggyBackData)
-	// payload
-	switch x := m.Payload.(type) {
-	case *PiggyBackData_Alive:
-		s := proto.Size(x.Alive)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *PiggyBackData_Suspect:
-		s := proto.Size(x.Suspect)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *PiggyBackData_Dead:
-		s := proto.Size(x.Dead)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
-}
-
-type Alive struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *Alive) Reset()         { *m = Alive{} }
-func (m *Alive) String() string { return proto.CompactTextString(m) }
-func (*Alive) ProtoMessage()    {}
-func (*Alive) Descriptor() ([]byte, []int) {
-	return fileDescriptor_33c57e4bae7b9afd, []int{5}
-}
-
-func (m *Alive) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_Alive.Unmarshal(m, b)
-}
-func (m *Alive) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_Alive.Marshal(b, m, deterministic)
-}
-func (m *Alive) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Alive.Merge(m, src)
-}
-func (m *Alive) XXX_Size() int {
-	return xxx_messageInfo_Alive.Size(m)
-}
-func (m *Alive) XXX_DiscardUnknown() {
-	xxx_messageInfo_Alive.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Alive proto.InternalMessageInfo
-
-type Suspect struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *Suspect) Reset()         { *m = Suspect{} }
-func (m *Suspect) String() string { return proto.CompactTextString(m) }
-func (*Suspect) ProtoMessage()    {}
-func (*Suspect) Descriptor() ([]byte, []int) {
-	return fileDescriptor_33c57e4bae7b9afd, []int{6}
-}
-
-func (m *Suspect) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_Suspect.Unmarshal(m, b)
-}
-func (m *Suspect) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_Suspect.Marshal(b, m, deterministic)
-}
-func (m *Suspect) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Suspect.Merge(m, src)
-}
-func (m *Suspect) XXX_Size() int {
-	return xxx_messageInfo_Suspect.Size(m)
-}
-func (m *Suspect) XXX_DiscardUnknown() {
-	xxx_messageInfo_Suspect.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Suspect proto.InternalMessageInfo
-
-type Dead struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *Dead) Reset()         { *m = Dead{} }
-func (m *Dead) String() string { return proto.CompactTextString(m) }
-func (*Dead) ProtoMessage()    {}
-func (*Dead) Descriptor() ([]byte, []int) {
-	return fileDescriptor_33c57e4bae7b9afd, []int{7}
-}
-
-func (m *Dead) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_Dead.Unmarshal(m, b)
-}
-func (m *Dead) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_Dead.Marshal(b, m, deterministic)
-}
-func (m *Dead) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Dead.Merge(m, src)
-}
-func (m *Dead) XXX_Size() int {
-	return xxx_messageInfo_Dead.Size(m)
-}
-func (m *Dead) XXX_DiscardUnknown() {
-	xxx_messageInfo_Dead.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Dead proto.InternalMessageInfo
 
 func init() {
 	proto.RegisterType((*Message)(nil), "pb.Message")
 	proto.RegisterType((*Ping)(nil), "pb.Ping")
 	proto.RegisterType((*Ack)(nil), "pb.Ack")
 	proto.RegisterType((*IndirectPing)(nil), "pb.IndirectPing")
-	proto.RegisterType((*PiggyBackData)(nil), "pb.PiggyBackData")
-	proto.RegisterType((*Alive)(nil), "pb.Alive")
-	proto.RegisterType((*Suspect)(nil), "pb.Suspect")
-	proto.RegisterType((*Dead)(nil), "pb.Dead")
+	proto.RegisterType((*PiggyBack)(nil), "pb.PiggyBack")
 }
 
 func init() { proto.RegisterFile("message.proto", fileDescriptor_33c57e4bae7b9afd) }
 
 var fileDescriptor_33c57e4bae7b9afd = []byte{
-	// 329 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x54, 0x91, 0xb1, 0x4e, 0xc3, 0x30,
-	0x10, 0x86, 0x93, 0x26, 0x6d, 0x9a, 0x6b, 0x23, 0x8a, 0x07, 0x14, 0x09, 0x09, 0x4a, 0x16, 0x3a,
-	0x75, 0x28, 0x03, 0x82, 0xad, 0x55, 0x87, 0x30, 0x20, 0x21, 0xf3, 0x00, 0xd5, 0xc5, 0xb1, 0x2c,
-	0x2b, 0x25, 0x35, 0x8d, 0x41, 0xca, 0x0b, 0xf0, 0x8a, 0xbc, 0x0e, 0xb2, 0xe3, 0x56, 0x61, 0xbb,
-	0xfb, 0xff, 0x3f, 0x97, 0xbb, 0xcf, 0x90, 0x7c, 0xf0, 0xa6, 0x41, 0xc1, 0x97, 0xea, 0x78, 0xd0,
-	0x07, 0x32, 0x50, 0x45, 0xf6, 0xeb, 0x43, 0xf4, 0xda, 0xa9, 0x64, 0x06, 0x41, 0xc3, 0x3f, 0x53,
-	0x7f, 0xee, 0x2f, 0x62, 0x6a, 0x4a, 0x72, 0x03, 0xa1, 0x92, 0xb5, 0x48, 0x07, 0x73, 0x7f, 0x31,
-	0x59, 0x8d, 0x97, 0xaa, 0x58, 0xbe, 0xc9, 0x5a, 0xe4, 0x1e, 0xb5, 0x3a, 0xb9, 0x86, 0x00, 0x59,
-	0x95, 0x06, 0xd6, 0x8e, 0x8c, 0xbd, 0x66, 0x55, 0xee, 0x51, 0xa3, 0x92, 0x47, 0x48, 0x64, 0x5d,
-	0xca, 0x23, 0x67, 0x7a, 0x67, 0xa7, 0x84, 0x36, 0x36, 0x33, 0xb1, 0x17, 0x67, 0xb8, 0x69, 0x53,
-	0xd9, 0xeb, 0xc9, 0x13, 0x5c, 0x28, 0x29, 0x44, 0xbb, 0x2b, 0x90, 0x55, 0xbb, 0x12, 0x35, 0xa6,
-	0x43, 0xfb, 0xe9, 0x65, 0xb7, 0x80, 0x10, 0xed, 0x06, 0x59, 0xb5, 0x45, 0x8d, 0x34, 0x51, 0xfd,
-	0x76, 0x13, 0x43, 0xa4, 0xb0, 0xdd, 0x1f, 0xb0, 0xcc, 0x46, 0x10, 0x9a, 0x69, 0xd9, 0x2d, 0x04,
-	0x6b, 0x56, 0x91, 0xf4, 0xec, 0xd8, 0x6b, 0x62, 0x7a, 0x0e, 0x3e, 0xc3, 0xb4, 0xbf, 0x0e, 0xb9,
-	0x82, 0x91, 0xc6, 0xa3, 0xe0, 0xda, 0x05, 0x5d, 0x47, 0x08, 0x84, 0xf5, 0xe9, 0xda, 0x31, 0xb5,
-	0x75, 0xf6, 0xe3, 0x43, 0xf2, 0x6f, 0x21, 0x72, 0x07, 0x43, 0xdc, 0xcb, 0x6f, 0x6e, 0x31, 0x4e,
-	0x56, 0xb1, 0x85, 0x62, 0x84, 0xdc, 0xa3, 0x9d, 0x43, 0xee, 0x21, 0x6a, 0xbe, 0x1a, 0xc5, 0x99,
-	0x76, 0x60, 0x27, 0x26, 0xf4, 0xde, 0x49, 0xb9, 0x47, 0x4f, 0xae, 0xc1, 0x5f, 0x72, 0x2c, 0x1d,
-	0x5f, 0x8b, 0x7f, 0xcb, 0xb1, 0x34, 0xf8, 0x8d, 0xde, 0xbf, 0x36, 0x82, 0xa1, 0xfd, 0x4b, 0x16,
-	0x43, 0xe4, 0x26, 0x19, 0x02, 0x26, 0x5e, 0x8c, 0xec, 0x73, 0x3f, 0xfc, 0x05, 0x00, 0x00, 0xff,
-	0xff, 0x5d, 0x0d, 0xa2, 0xab, 0xff, 0x01, 0x00, 0x00,
+	// 273 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x4c, 0x51, 0xbb, 0x6a, 0xc3, 0x30,
+	0x14, 0x8d, 0x1f, 0xb1, 0xa3, 0xdb, 0xb8, 0x84, 0x3b, 0x14, 0x43, 0xa1, 0x0d, 0x9e, 0x02, 0x05,
+	0x0f, 0xed, 0x50, 0xe8, 0x96, 0x4c, 0xe9, 0x10, 0x28, 0xfa, 0x81, 0x22, 0x5b, 0x42, 0x08, 0xb7,
+	0xb6, 0x6a, 0xa9, 0x43, 0x3e, 0xb1, 0x7f, 0x55, 0xa4, 0x28, 0x4e, 0xb6, 0x7b, 0x1e, 0xf7, 0xe8,
+	0x48, 0x82, 0xe2, 0x5b, 0x18, 0xc3, 0xa4, 0xa8, 0xf5, 0x38, 0xd8, 0x01, 0x63, 0xdd, 0x54, 0x7f,
+	0x11, 0xe4, 0x87, 0x13, 0x8b, 0x2b, 0x48, 0x8c, 0xf8, 0x29, 0xa3, 0x75, 0xb4, 0x21, 0xd4, 0x8d,
+	0xf8, 0x00, 0xa9, 0x56, 0xbd, 0x2c, 0xe3, 0x75, 0xb4, 0xb9, 0x79, 0x5e, 0xd4, 0xba, 0xa9, 0x3f,
+	0x54, 0x2f, 0xf7, 0x33, 0xea, 0x79, 0xbc, 0x87, 0x84, 0xb5, 0x5d, 0x99, 0x78, 0x39, 0x77, 0xf2,
+	0xb6, 0xed, 0xf6, 0x33, 0xea, 0x58, 0x7c, 0x85, 0x42, 0xf5, 0x5c, 0x8d, 0xa2, 0xb5, 0x9f, 0x3e,
+	0x25, 0xf5, 0xb6, 0x95, 0xb3, 0xbd, 0x07, 0x21, 0xa4, 0x2d, 0xd5, 0x15, 0xc6, 0x27, 0x20, 0x5a,
+	0x49, 0x79, 0xdc, 0xb9, 0xec, 0xb9, 0x5f, 0x2a, 0x4e, 0x47, 0x07, 0x92, 0x5e, 0xf4, 0x1d, 0x81,
+	0x5c, 0xb3, 0xe3, 0xd7, 0xc0, 0x78, 0x95, 0x41, 0xea, 0xf6, 0xab, 0x47, 0x48, 0xb6, 0x6d, 0x87,
+	0xe5, 0xa4, 0xf8, 0xfe, 0x84, 0x4e, 0xc6, 0x37, 0x58, 0x5e, 0x17, 0xc0, 0x3b, 0xc8, 0x2c, 0x1b,
+	0xa5, 0xb0, 0xc1, 0x18, 0x10, 0x22, 0xa4, 0xfd, 0xf9, 0x7e, 0x0b, 0xea, 0xe7, 0xea, 0x00, 0x64,
+	0xea, 0x81, 0xb7, 0x10, 0x2b, 0x1e, 0x1e, 0x2c, 0x56, 0xdc, 0x05, 0x19, 0xcb, 0xec, 0xaf, 0xf1,
+	0x41, 0x73, 0x1a, 0x90, 0xab, 0xc2, 0x38, 0x1f, 0x85, 0x31, 0x3e, 0x8b, 0xd0, 0x33, 0x6c, 0x32,
+	0xff, 0x15, 0x2f, 0xff, 0x01, 0x00, 0x00, 0xff, 0xff, 0xb2, 0xd0, 0x74, 0x2b, 0x9b, 0x01, 0x00,
+	0x00,
 }

@@ -14,14 +14,10 @@
  * limitations under the License.
  */
 
-package swim_test
+package swim
 
 import "testing"
 
-func TestSuspicion_Confirm(t *testing.T) {
-
-}
-
-func TestNewSuspicion(t *testing.T) {
+func TestSuspicion_calcRemainingSuspicionTime(t *testing.T) {
 
 }

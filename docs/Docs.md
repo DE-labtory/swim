@@ -53,9 +53,9 @@ Group member(`M_j`)의 fail을 감지하면, 노드(`M_i1`)는 Group의 다른 m
 - Group별로`Join`메세지를 전용으로 처리하는 Static coordinator를 둔다.
 
 ### A More Robust and Efficient SWIM
-일반적인 multicast 방식의 Dissemination은 패킷의 전달을 보장하지 않는 [best-effort](https://en.wikipedia.org/wiki/Best-effort_delivery) 방식이다. 왜냐하면, 패킷의 손실로 group member 간의 상관관계가 없는 임의의 member가 전달될 수 있기 때문이다. 
+일반적인 multicast 방식의 Dissemination은 패킷의 전달을 보장하지 않는 [best-effort](https://en.wikipedia.org/wiki/Best-effort_delivery) 방식이다. 왜냐하면, 패킷의 손실로 group member 간의 상관관계가 없는 임의의 member가 전달될 수 있기 때문이다.
 
-하지만 SWIM에서는 multicast 방식이 아니라 Infection style을 사용한다. Infection style은 multicast 방식보다 데이터 전파가 많이 되지만, SWIM에서는 failure detection protocol의 membership update 정보를 `ping`, `ping-req`, `ack` 메시지에 같이 넣어서 보내는 [piggyback](https://en.wikipedia.org/wiki/Piggybacking_(data_transmission)) 방식을 사용하여 기존 dissemination에서 발생하는 extra packet을 없앨 수 있게했다. 
+하지만 SWIM에서는 multicast 방식이 아니라 Infection style을 사용한다. Infection style은 multicast 방식보다 데이터 전파가 많이 되지만, SWIM에서는 failure detection protocol의 membership update 정보를 `ping`, `ping-req`, `ack` 메시지에 같이 넣어서 보내는 [piggyback](https://en.wikipedia.org/wiki/Piggybacking_(data_transmission)) 방식을 사용하여 기존 dissemination에서 발생하는 extra packet을 없앨 수 있게했다.
 
 SWIM은 이렇게 failure detection과 membership update dissemination component를 분리하여 message overhead를 constant expected 하게 했고 이것은 packet 손실에 있어서 robustness하고 low latency를 제공한다.
 
@@ -66,11 +66,11 @@ SWIM은 이렇게 failure detection과 membership update dissemination component
 
 #### Implementation Hint
 
-각 그룹의 멤버 `M_i`는 버퍼를 가지고 있는데 
+각 그룹의 멤버 `M_i`는 버퍼를 가지고 있는데
 
-* 버퍼에는 최근에 발생한 membership update 정보들을 담고 있다. 
-* 그리고 버퍼에 자신(`M_i`)이 주위 멤버들에게 piggyback한 횟수를 담고 있는 `local count`의 정보를 담는다. 그리고 이 `local count`로 자신이 다음에 누구에게 piggyback 할지를 결정할 수 있다. 
-* 버퍼의 사이즈가 한 멤버가 `ping` (또는 `ack`)을 piggyback 할 수 있는 최대 횟수보다 크다면(충분히 크다면) 다음으로 piggyback 할 멤버는 `local count`가 작은 멤버로 한다.  
+* 버퍼에는 최근에 발생한 membership update 정보들을 담고 있다.
+* 그리고 버퍼에 자신(`M_i`)이 주위 멤버들에게 piggyback한 횟수를 담고 있는 `local count`의 정보를 담는다. 그리고 이 `local count`로 자신이 다음에 누구에게 piggyback 할지를 결정할 수 있다.
+* 버퍼의 사이즈가 한 멤버가 `ping` (또는 `ack`)을 piggyback 할 수 있는 최대 횟수보다 크다면(충분히 크다면) 다음으로 piggyback 할 멤버는 `local count`가 작은 멤버로 한다.
 
 그리고 두 개의 그룹 멤버 리스트를 가지고 있다.
 * 하나에는 아직 그룹에서 “failed” 되지 않은 멤버들을 담고 있고
@@ -89,7 +89,7 @@ SWIM은 이렇게 failure detection과 membership update dissemination component
 
 #### How Suspicion Protocol Works
 
-Suspicion 프로토콜은 다음과 같이 동작한다. 예를 들어 현재 SWIM failure detector protocol period `T` 시간동안 멤버 `M_i`가 다른 멤버 `M_j`를 `ping` 타겟으로 정하고 보냈다고 생각하자. 이때 `M_i`가 `M_j`에 대한 `ack`를 받지 못해도, `M_i`는 `M_j`를 바로 “failed”라고 선언하지 않는다. 대신 `M_j`를 “Suspected” 멤버라고 로컬 멤버십 리스트에 마크한다. 그리고 
+Suspicion 프로토콜은 다음과 같이 동작한다. 예를 들어 현재 SWIM failure detector protocol period `T` 시간동안 멤버 `M_i`가 다른 멤버 `M_j`를 `ping` 타겟으로 정하고 보냈다고 생각하자. 이때 `M_i`가 `M_j`에 대한 `ack`를 받지 못해도, `M_i`는 `M_j`를 바로 “failed”라고 선언하지 않는다. 대신 `M_j`를 “Suspected” 멤버라고 로컬 멤버십 리스트에 마크한다. 그리고
 
 ```
 {Suspect M_j: M_j suspects M_j}
@@ -97,7 +97,7 @@ Suspicion 프로토콜은 다음과 같이 동작한다. 예를 들어 현재 SW
 
 와 같은 형태의 메시지가 Dissemination Component를 통해서 infection-style로 전파된다. 그리고 전파된 메시지를 받은 멤버 `M_i`도 `M_j`를 “Suspected”로 마크한다. 그렇지만 “Suspected” 멤버는 여전히 정상적인(non-faulty) 멤버들과 똑같이 SWIM failure detector protocol에서 `ping` 타겟으로 삼을 수 있다.
 
-protocol period `T`시간동안 `M_i`이 `M_j`에게 `ping`을 보내는데 성공했다면 로컬 멤버십 리스트의 `M_j`에 대한 “Suspected” 마크를 지운다. 그리고 
+protocol period `T`시간동안 `M_i`이 `M_j`에게 `ping`을 보내는데 성공했다면 로컬 멤버십 리스트의 `M_j`에 대한 “Suspected” 마크를 지운다. 그리고
 
 ```
 {Alive M_j: M_l knows M_j is alive}
@@ -107,7 +107,7 @@ protocol period `T`시간동안 `M_i`이 `M_j`에게 `ping`을 보내는데 성�
 
 `M_j` 입장에서 다른 멤버로부터 `M_j`를 “Suspected”하고 있다는 메시지를 받으면 `M_j`는 “Alive” 메시지를 다른 멤버들에게 전파할 수 있다.
 
-멤버십 리스트에서 “Suspected” 멤버 리스트는 일정 시간이 지나면 expired된다. 예를 들어 `M_h`가 `M_j`를 “Suspected” 리스트에 가지고 있을 때, 일정 시간이 지날 동안 `M_j`로부터 “Alive” 메시지를 받지 못한다면 `M_h`는 `M_j`를 잘못된(faulty) 멤버라고 생각하고 로컬 멤버십 리스트에서 제외한다. 그리고 `M_j`는 
+멤버십 리스트에서 “Suspected” 멤버 리스트는 일정 시간이 지나면 expired된다. 예를 들어 `M_h`가 `M_j`를 “Suspected” 리스트에 가지고 있을 때, 일정 시간이 지날 동안 `M_j`로부터 “Alive” 메시지를 받지 못한다면 `M_h`는 `M_j`를 잘못된(faulty) 멤버라고 생각하고 로컬 멤버십 리스트에서 제외한다. 그리고 `M_j`는
 
 ```
 {Confirm M_j: M_h declares M_j as faulty}
@@ -117,7 +117,7 @@ protocol period `T`시간동안 `M_i`이 `M_j`에게 `ping`을 보내는데 성�
 
 #### Message Override Rule
 
-위의 예시에서 살펴보면 “Alive” 메시지는 “Suspect” 메시지를 오버라이드할 수 있다. 마찬가지로 “Confirm” 메시지는 “Suspect”메시지와 “Alive” 메시지를 오버라이드 할 수 있다. 그런데 메시지 오버라이드 규칙을 정하기위해서 메시지에 메시지 종류뿐만아니라 `incarnation number`도 추가하여야하는데 이는 멤버의 라이프사이클 동안 여러번 메시지를 받을 수 있기 때문이다. 
+위의 예시에서 살펴보면 “Alive” 메시지는 “Suspect” 메시지를 오버라이드할 수 있다. 마찬가지로 “Confirm” 메시지는 “Suspect”메시지와 “Alive” 메시지를 오버라이드 할 수 있다. 그런데 메시지 오버라이드 규칙을 정하기위해서 메시지에 메시지 종류뿐만아니라 `incarnation number`도 추가하여야하는데 이는 멤버의 라이프사이클 동안 여러번 메시지를 받을 수 있기 때문이다.
 
 첫 번째로 받은 “Alive” 메시지와 두 번째로 받은 “Alive” 메시지를 구분해야 하는데 이를 `incarnation number`을 통해서 하게된다. `incarnation number`는 글로벌하다. 각 멤버 `M_i`의 `incarnation number`은 그룹에 처음 들어오게되면 0으로 초기화된다. 그리고 Dissemination Component로부터 `M_i` 자신이 현재 incarnation에서 “Suspected” 되고 있다면 `M_i`의 `incarnation number`를 증가시키고 “Alive” 메시지를 Dissemination Component를 통해서 그룹에 전파하게된다.
 
@@ -150,7 +150,7 @@ protocol period `T`시간동안 `M_i`이 `M_j`에게 `ping`을 보내는데 성�
 
 Lifeguard 개념에 대해서 설명하기 전에 Suspicion 메커니즘이 왜 등장했는지에 대해서 먼저 생각해보자. 첫 번째로 *flapping problem*이 있다. **flapping problem**은 정상적으로 동작하는 노드를 실패했라고 체크하는 문제이다. 그래서 보통 로그 어디에도 해당 노드가 실패했다고 나오지 않는다. 그렇지만 네트워크 내의 노드들은 정상적으로 동작하는 노드를 실패했다고 체크해놓는다.
 
-두 번째는 네트워크 내의 정상적으로 동작하지만 속도가 느린 프로세스에 대해서 실패했다고 판단하는 false positive를 낮추기 위해서이다. 어떤 노드가 다른 노드에게 probe를 하였을 때 최초로 timeout에 걸리면 그 노드를 dead 노드라고 판단하지말고 suspect 노드로 생각한다. 위와 같이 alive와 dead 사이에 suspect라는 한 가지 상태를 더 두어서 최초로 probe를 받은 대상 노드가 속도가 느린 경우를 감안하기 때문에 Suspicion Mechanism이 없는 네트워크보다 false positive가 낮아지게 된다. 
+두 번째는 네트워크 내의 정상적으로 동작하지만 속도가 느린 프로세스에 대해서 실패했다고 판단하는 false positive를 낮추기 위해서이다. 어떤 노드가 다른 노드에게 probe를 하였을 때 최초로 timeout에 걸리면 그 노드를 dead 노드라고 판단하지말고 suspect 노드로 생각한다. 위와 같이 alive와 dead 사이에 suspect라는 한 가지 상태를 더 두어서 최초로 probe를 받은 대상 노드가 속도가 느린 경우를 감안하기 때문에 Suspicion Mechanism이 없는 네트워크보다 false positive가 낮아지게 된다.
 
 그런데 다음과 같은 상황이 있을 수 있다. suspect 노드가 자신이 suspicion되고 있다는 메세지를 정상적으로 받고 suspect 노드가 alive 메세지를 날린다. 그런데 최초로 suspect 노드에게 probe를 날린 노드가 하필 또 속도가 느려서 정상적으로 보낸 alive 메세지를 제 시간에 처리하지 못하고 timeout에 걸릴 수 있다. 이와 같이 여전히 Suspicion Mechanism만으로는 해결하지 못하는 상황들이 존재한다.
 
@@ -188,12 +188,23 @@ ProbeInterval = BaseInterval * (NSA+1)
 
 nack은 SWIM 프로토콜에 해당하지는 않는다. 그렇지만 Lifeguard가 자기자신에게 돌아오지 않는 메세지를 고려하기 때문에 nack이 유용하게 사용될 수 있다. 예를 들어보면 네트워크 내에 A, B, C, D가 있는데 A가 D에게 메세지를 보낸다고 하자. 이 때 아무런 응답이 다시 A에게 돌아오지 않을 때 nack을 사용하지 않는다면 B, C, D 중에 누가 문제인지 알 수 없다. 반면에 nack을 사용한다고 했을 때 nack이 B, C로 부터 돌아오면 A, B, C 끼리는 통신이 잘 되는 것을 확인할 수 있고 문제의 원인은 D에 있을 가능성이 높아진다. 또 nack이 B, C 로부터 잘 돌아오지 않는다면 A가 isolated 되있을 가능성이 높다.
 
+probe timeout의 80%까지 ack를 받지 못할경우, 자신에게 indirect ping을 보낸 노드(A)에게 nack 메세지를 보낸다. 만약, A에게 nack을 보내고 난 후 ack 메세지를 받았을 경우 다시 A에게 ack 메세지를 보낸다. 이것 또한 indirect probe가 성공되었다고 간주한다.
+
 ###### L2: Dynamic Suspicion Timeouts: "Dogpile"
 
 기본적인 원리는 L1과 비슷하게 자신에게 돌아오지 않는 메세지가 있을 때 suspection timeout을 늘리게된다. 왜냐하면 메세지가 잘 들어오지 않는 다는 것은 자기 자신이 느리거나 다른 노드들과 isolated 되있을 가능성이 크다는 것이기 때문에 suspect 노드로 부터 alive 메세지가 timeout을 방지하기 위해서 timeout을 늘린다. 그래서 방식을 정리하면 다음과 같다. 최초로 노드는 큰 suspicion timeout 값을 가지고 시작한다. 그리고 자기 자신이 많은 메세지를 받을 수록 suspicion timeout을 낮춘다.
 
+<p align="center">
+<img src="../images/[lifeguard]SuspicionTimeout.PNG" width="450px" height="100px">
+</p>
+
+- Max : Maximum of Suspicion timeout
+- Min : Minimum of Suspicion timeout
+- K : Suspicion timeout이 Min으로 설정되기 전까지의 Suspicion member의 수
+- C : local suspicion이 일이난 후 suspicion이라고 지정된 member의 수
+
+Suspicion Timeout은 member 내에서 이전까지 suspicion이 아닌 member가 suspicion이 될 때 마다 다시 계산된다.
+
 ###### L3: More Timely Refutation: "Buddy System"
 
 L3의 아이디어는 suspect 노드만이 suspicion을 없앨 수 있다는 것이다. 다시 말하면 suspect 노드만이 incarnation number를 올릴 수 있다. 예를 들어 네트워크에 수많은 suspect 메세지가 있을 수 있다. 그런데 그 suspicion을 없애기 위해서는 각 suspect에 해당하는 노드가 incarnation number를 올렸을 때 없앨 수 있다. 왜냐하면 높은 incarnation number의 메세지가 노드의 상태를 override 할 수 있기 때문이다. 그래서 L3에서는 자기가 suspect 노드를 알고 있다면 suspect 노드에게 우선적으로 probe 한다는 원리이다. 이렇게 suspect 멤버 이외에 해당 suspect 멤버의 상태를 규정할 수 있는 멤버들이 없기 때문에, suspect 멤버에게 suspicion 메세지를 piggybacking 함으로써 해당 suspect 멤버가 살아있는 상태라면 스스로 incarnation number를 올릴 것이다. 결국에는 해당 suspect 멤버가 자신의 최신 상태를 gossip 함으로써 네트워크 내의 다른 멤버들도 해당 멤버의 최신상태를 업데이트 할  수 있을 것이다.
-
-

@@ -29,20 +29,30 @@ import (
 var ErrSendTimeout = errors.New("Error send timeout")
 var ErrUnreachable = errors.New("Error this shouldn't reach")
 var ErrInvalidMessage = errors.New("Error invalid message")
+var ErrCallbackCollectIntervalNotSpecified = errors.New("Error callback collect interval should be specified")
 
-// Callback is called when target member sent back to local member a message
-type callback func(msg pb.Message)
-
-// RespondHandler manages callback functions
-type responseHandler struct {
-	callbacks map[string]callback
+// sallback is called when target member sent back to local member a message
+// created field is for clean up the old callback
+type callback struct {
+	fn func(msg pb.Message)
+	created time.Time
 }
 
-// TODO: add old callback collectors
-func newRespondHandler() *responseHandler {
-	return &responseHandler{
+// responseHandler manages callback functions
+type responseHandler struct {
+	callbacks map[string]callback
+	collectInterval time.Duration
+}
+
+func newResponseHandler(collectInterval time.Duration) *responseHandler {
+	h := &responseHandler{
 		callbacks: make(map[string]callback),
+		collectInterval: collectInterval,
 	}
+
+	go h.collectCallback()
+
+	return h
 }
 
 func (r *responseHandler) addCallback(seq string, cb callback) {
@@ -53,13 +63,13 @@ func (r *responseHandler) addCallback(seq string, cb callback) {
 // a message, callback matching message's seq is called
 func (r *responseHandler) handle(msg pb.Message) {
 	seq := msg.Seq
-	cbFn, exist := r.callbacks[seq]
+	cb, exist := r.callbacks[seq]
 
 	if exist == false {
 		iLogger.Panicf(nil, "Panic, no matching callback function")
 	}
 
-	cbFn(msg)
+	cb.fn(msg)
 	delete(r.callbacks, seq)
 }
 
@@ -72,9 +82,33 @@ func (r *responseHandler) hasCallback(seq string) bool {
 	return false
 }
 
+// collectCallback every time callbackCollectInterval expired clean up
+// the old (time.now - callback.created > time interval) callback deleted from map
+// callbackCollectInterval specified in config
+func (r *responseHandler) collectCallback() {
+	timeout := r.collectInterval
+	T := time.NewTimer(timeout)
+
+	for {
+		select {
+		case <- T.C:
+			for seq, cb := range r.callbacks {
+				if time.Now().Sub(cb.created) > timeout {
+					delete(r.callbacks, seq)
+				}
+			}
+			T = time.NewTimer(timeout)
+		}
+	}
+}
+
 type MessageEndpointConfig struct {
 	EncryptionEnabled  bool
 	DefaultSendTimeout time.Duration
+
+	// callbackCollect Interval indicate time interval to clean up old
+	// callback function
+	CallbackCollectInterval time.Duration
 }
 
 // MessageEndpoint basically do receiving packet and determine
@@ -88,15 +122,19 @@ type MessageEndpoint struct {
 	quit           chan struct{}
 }
 
-func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, messageHandler MessageHandler, awareness *Awareness) *MessageEndpoint {
+func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, messageHandler MessageHandler, awareness *Awareness) (*MessageEndpoint, error) {
+	if config.CallbackCollectInterval == time.Duration(0) {
+		return nil, ErrCallbackCollectIntervalNotSpecified
+	}
+
 	return &MessageEndpoint{
 		config:         config,
 		transport:      transport,
 		messageHandler: messageHandler,
 		awareness:      awareness,
-		resHandler:     newRespondHandler(),
+		resHandler:     newResponseHandler(config.CallbackCollectInterval),
 		quit:           make(chan struct{}),
-	}
+	}, nil
 }
 
 // Listen is a log running goroutine that pulls packet from the
@@ -110,6 +148,10 @@ func (m *MessageEndpoint) Listen() {
 			if err != nil {
 				iLogger.Panic(nil, err.Error())
 			}
+
+			// before message that come from other handle by MessageHandler
+			// check whether this message is sent-back message from other member
+			// this is determined by message's Seq property which work as message id
 
 			if m.resHandler.hasCallback(msg.Seq) {
 				m.resHandler.handle(msg)
@@ -149,8 +191,17 @@ func (m *MessageEndpoint) Shutdown() {
 }
 
 func validateMessage(msg pb.Message) bool {
-	return msg.Seq != "" &&
-		msg.Payload != nil
+	if msg.Seq == "" {
+		iLogger.Info(nil, "message seq value empty")
+		return false
+	}
+
+	if msg.Payload == nil {
+		iLogger.Info(nil, "message payload value empty")
+		return false
+	}
+
+	return true
 }
 
 // with given message handleMessage determine which logic should be executed
@@ -170,7 +221,7 @@ func (m *MessageEndpoint) handleMessage(msg pb.Message) error {
 // determineSendTimeout if @timeout is given, then use this value as timeout value
 // otherwise calculate timeout value based on the awareness
 func (m *MessageEndpoint) determineSendTimeout(timeout time.Duration) time.Duration {
-	if timeout != time.Duration(0) {
+	if timeout == time.Duration(0) {
 		return m.awareness.ScaleTimeout(m.config.DefaultSendTimeout)
 	}
 
@@ -184,6 +235,8 @@ func (m *MessageEndpoint) determineSendTimeout(timeout time.Duration) time.Durat
 func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Duration) (pb.Message, error) {
 	onSucc := make(chan pb.Message)
 
+	// if @interval provided then, use parameters, if not timeout determine by
+	// its awareness score
 	timeout := m.determineSendTimeout(interval)
 
 	d, err := proto.Marshal(&msg)
@@ -191,10 +244,16 @@ func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Du
 		return pb.Message{}, err
 	}
 
-	m.resHandler.addCallback(msg.Seq, func(msg pb.Message) {
-		onSucc <- msg
+	// register callback function, this callback function is called when
+	// member with @addr sent back us packet
+	m.resHandler.addCallback(msg.Seq, callback {
+		fn: func(msg pb.Message) {
+			onSucc <- msg
+		},
+		created: time.Now(),
 	})
 
+	// send the message
 	_, err = m.transport.WriteTo(d, addr)
 	if err != nil {
 		iLogger.Info(nil, err.Error())

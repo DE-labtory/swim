@@ -39,7 +39,7 @@ type responseHandler struct {
 }
 
 // TODO: add old callback collectors
-func NewRespondHandler() *responseHandler {
+func newRespondHandler() *responseHandler {
 	return &responseHandler{
 		callbacks: make(map[string]callback),
 	}
@@ -53,10 +53,10 @@ func (r *responseHandler) addCallback(seq string, cb callback) {
 // a message, callback matching message's seq is called
 func (r *responseHandler) handle(msg pb.Message) {
 	seq := msg.Seq
-	cbFn := r.callbacks[seq]
+	cbFn, exist := r.callbacks[seq]
 
-	if cbFn == nil {
-		iLogger.Panicf(nil, "")
+	if exist == false {
+		iLogger.Panicf(nil, "Panic, no matching callback function")
 	}
 
 	cbFn(msg)
@@ -83,18 +83,18 @@ type MessageEndpoint struct {
 	config         MessageEndpointConfig
 	transport      UDPTransport
 	messageHandler MessageHandler
-	awareness      Awareness
+	awareness      *Awareness
 	resHandler     *responseHandler
 	quit           chan struct{}
 }
 
-func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, messageHandler MessageHandler, awareness Awareness) *MessageEndpoint {
+func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, messageHandler MessageHandler, awareness *Awareness) *MessageEndpoint {
 	return &MessageEndpoint{
 		config:         config,
 		transport:      transport,
 		messageHandler: messageHandler,
 		awareness:      awareness,
-		resHandler:     NewRespondHandler(),
+		resHandler:     newRespondHandler(),
 		quit:           make(chan struct{}),
 	}
 }
@@ -108,13 +108,15 @@ func (m *MessageEndpoint) Listen() {
 			// validate packet then convert it to message
 			msg, err := m.processPacket(*packet)
 			if err != nil {
-				iLogger.Error(nil, err.Error())
+				iLogger.Panic(nil, err.Error())
 			}
 
 			if m.resHandler.hasCallback(msg.Seq) {
 				m.resHandler.handle(msg)
 			} else {
-				m.handleMessage(msg)
+				if err := m.handleMessage(msg); err != nil {
+					iLogger.Panic(nil, err.Error())
+				}
 			}
 
 		case <-m.quit:
@@ -168,7 +170,7 @@ func (m *MessageEndpoint) handleMessage(msg pb.Message) error {
 // determineSendTimeout if @timeout is given, then use this value as timeout value
 // otherwise calculate timeout value based on the awareness
 func (m *MessageEndpoint) determineSendTimeout(timeout time.Duration) time.Duration {
-	if timeout == (time.Duration)(nil) || timeout != time.Duration(0) {
+	if timeout != time.Duration(0) {
 		return m.awareness.ScaleTimeout(m.config.DefaultSendTimeout)
 	}
 

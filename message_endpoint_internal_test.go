@@ -70,7 +70,7 @@ func TestResponseHandler_handle_callback_not_exist(t *testing.T) {
 	seq := "seq1"
 	msg := pb.Message{Seq: "arbitrarySeq"}
 	cb := callback{
-		fn: func(msg pb.Message) {},
+		fn:      func(msg pb.Message) {},
 		created: time.Now(),
 	}
 
@@ -81,11 +81,11 @@ func TestResponseHandler_handle_callback_not_exist(t *testing.T) {
 func TestResponseHandler_hasCallback(t *testing.T) {
 	rh := newResponseHandler(time.Hour)
 	cb1 := callback{
-		fn: func(msg pb.Message) {},
+		fn:      func(msg pb.Message) {},
 		created: time.Now(),
 	}
 	cb2 := callback{
-		fn: func(msg pb.Message) {},
+		fn:      func(msg pb.Message) {},
 		created: time.Now(),
 	}
 
@@ -104,11 +104,11 @@ func TestResponseHandler_hasCallback(t *testing.T) {
 func TestResponseHandler_collectCallback(t *testing.T) {
 	rh := newResponseHandler(time.Second * 2)
 	cb1 := callback{
-		fn: func(msg pb.Message) {},
+		fn:      func(msg pb.Message) {},
 		created: time.Now(),
 	}
 	cb2 := callback{
-		fn: func(msg pb.Message) {},
+		fn:      func(msg pb.Message) {},
 		created: time.Now().Add(time.Second * 4),
 	}
 
@@ -117,13 +117,49 @@ func TestResponseHandler_collectCallback(t *testing.T) {
 
 	assert.Equal(t, len(rh.callbacks), 2)
 
+	// sleep 3 sec, cb1 should be collected
 	time.Sleep(time.Second * 3)
 
 	assert.Equal(t, len(rh.callbacks), 1)
 
+	// sleep 4 sec, cb2 should be collected
 	time.Sleep(time.Second * 4)
 
 	assert.Equal(t, len(rh.callbacks), 0)
+}
+
+func TestNewMessageEndpoint(t *testing.T) {
+	tc := PacketTransportConfig{
+		BindAddress: "127.0.0.1",
+		BindPort:    11110,
+	}
+
+	p, err := NewPacketTransport(&tc)
+	assert.NoError(t, err)
+
+	// if CallbackCollectInterval not provided, then should return error
+	mc := MessageEndpointConfig{
+		EncryptionEnabled:  false,
+		DefaultSendTimeout: time.Second,
+	}
+
+	h := MockMessageHandler{}
+
+	a := NewAwareness(8)
+	e, err := NewMessageEndpoint(mc, p, h, a)
+	assert.Error(t, err, ErrCallbackCollectIntervalNotSpecified)
+	assert.Nil(t, e)
+
+	// if CallbackCollectInterval provided, then should return object successfully
+	mc2 := MessageEndpointConfig{
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
+		CallbackCollectInterval: time.Hour,
+	}
+
+	e2, err := NewMessageEndpoint(mc2, p, h, a)
+	assert.NoError(t, err)
+	assert.NotNil(t, e2)
 }
 
 // MessageEndpoint.Listen when there's no callback matching with message.Seq
@@ -142,8 +178,8 @@ func TestMessageEndpoint_Listen_NoCallback(t *testing.T) {
 	assert.NoError(t, err)
 
 	mc := MessageEndpointConfig{
-		EncryptionEnabled:  false,
-		DefaultSendTimeout: time.Second,
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -190,8 +226,8 @@ func TestMessageEndpoint_Listen_HaveCallback(t *testing.T) {
 	assert.NoError(t, err)
 
 	mc := MessageEndpointConfig{
-		EncryptionEnabled:  false,
-		DefaultSendTimeout: time.Second,
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -235,8 +271,8 @@ func TestMessageEndpoint_processPacket(t *testing.T) {
 	assert.NoError(t, err)
 
 	mc := MessageEndpointConfig{
-		EncryptionEnabled:  false,
-		DefaultSendTimeout: time.Second,
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -282,8 +318,8 @@ func TestMessageEndpoint_handleMessage(t *testing.T) {
 	p, _ := NewPacketTransport(&tc)
 
 	mc := MessageEndpointConfig{
-		EncryptionEnabled:  false,
-		DefaultSendTimeout: time.Second,
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -312,8 +348,8 @@ func TestMessageEndpoint_handleMessage_InvalidMessage(t *testing.T) {
 	p, _ := NewPacketTransport(&tc)
 
 	mc := MessageEndpointConfig{
-		EncryptionEnabled:  false,
-		DefaultSendTimeout: time.Second,
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -342,8 +378,8 @@ func TestMessageEndpoint_determineSendTimeout_timeout_provided(t *testing.T) {
 	p, _ := NewPacketTransport(&tc)
 
 	mc := MessageEndpointConfig{
-		EncryptionEnabled:  false,
-		DefaultSendTimeout: time.Second,
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -365,8 +401,8 @@ func TestMessageEndpoint_determineSendTimeout_timeout_not_provided(t *testing.T)
 	p, _ := NewPacketTransport(&tc)
 
 	mc := MessageEndpointConfig{
-		EncryptionEnabled:  false,
-		DefaultSendTimeout: time.Second,
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -396,8 +432,8 @@ func TestMessageEndpoint_SyncSend(t *testing.T) {
 	assert.NoError(t, err)
 
 	mc := MessageEndpointConfig{
-		EncryptionEnabled:  false,
-		DefaultSendTimeout: time.Second,
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -406,6 +442,12 @@ func TestMessageEndpoint_SyncSend(t *testing.T) {
 
 	h := MockMessageHandler{}
 	a := NewAwareness(8)
+
+	// increase nsa score in advance to test decreasing nsa score
+	// in the case when member probe successfully, self node actually
+	// decrease nsa point
+	a.ApplyDelta(2)
+
 	e, err := NewMessageEndpoint(mc, p, h, a)
 	assert.NoError(t, err)
 
@@ -417,6 +459,118 @@ func TestMessageEndpoint_SyncSend(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, sentMsg.Seq, (*msg).Seq)
 	assert.Equal(t, getAckPayload(sentMsg), getAckPayload(*msg))
+	assert.Equal(t, e.awareness.GetHealthScore(), 1)
+}
+
+// SyncSend internal timeout test send message to myself
+// 1. SyncSend register callback function
+// 2. send message after expiring SyncSend timer
+// 3. increase NSA score
+func TestMessageEndpoint_SyncSend_When_Timeout(t *testing.T) {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	tc := PacketTransportConfig{
+		BindAddress: "127.0.0.1",
+		BindPort:    11119,
+	}
+	p, err := NewPacketTransport(&tc)
+	assert.NoError(t, err)
+
+	tc2 := PacketTransportConfig{
+		BindAddress: "127.0.0.1",
+		BindPort:    11120,
+	}
+	p2, err := NewPacketTransport(&tc2)
+	assert.NoError(t, err)
+
+	mc := MessageEndpointConfig{
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
+		CallbackCollectInterval: time.Hour,
+	}
+	mc2 := MessageEndpointConfig{
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
+		CallbackCollectInterval: time.Hour,
+	}
+
+	// prepare message to send
+	msg := getAckMessage("seq1", "payload1")
+
+	h := MockMessageHandler{}
+	h.handleFunc = func(msg2 pb.Message) {
+		assert.Equal(t, msg2.Seq, (*msg).Seq)
+		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
+		wg.Done()
+	}
+	a := NewAwareness(8)
+	// receiver
+	e, err := NewMessageEndpoint(mc, p, h, a)
+	assert.NoError(t, err)
+
+	// start to listen
+	go e.Listen()
+
+	h2 := MockMessageHandler{}
+	a2 := NewAwareness(8)
+	// sender
+	e2, err := NewMessageEndpoint(mc2, p2, h2, a2)
+
+	// sender sends message to receiver, but receiver would never send back any message
+	// so sender's SyncSend timer will expire. as a result increase NSA score with error
+	sentMsg, err := e2.SyncSend("127.0.0.1:11119", *msg, time.Second*2)
+
+	assert.Error(t, err)
+	assert.Equal(t, pb.Message{}, sentMsg)
+	// sender's NSA score will increase
+	assert.Equal(t, 1, e2.awareness.GetHealthScore())
+
+	wg.Wait()
+}
+
+// Send internal test send message to myself
+// 1. send message using Transport
+// 2. Listen receive sent message
+// 3. then call message handler handle function
+func TestMessageEndpoint_Send(t *testing.T) {
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	tc := PacketTransportConfig{
+		BindAddress: "127.0.0.1",
+		BindPort:    11121,
+	}
+
+	p, err := NewPacketTransport(&tc)
+	assert.NoError(t, err)
+
+	mc := MessageEndpointConfig{
+		EncryptionEnabled:       false,
+		DefaultSendTimeout:      time.Second,
+		CallbackCollectInterval: time.Hour,
+	}
+
+	// prepare message to send
+	msg := getAckMessage("seq1", "payload1")
+
+	// sent data should be handled by MessageHandler
+	h := MockMessageHandler{}
+	h.handleFunc = func(msg2 pb.Message) {
+		assert.Equal(t, msg2.Seq, (*msg).Seq)
+		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
+		wg.Done()
+	}
+	a := NewAwareness(8)
+	e, err := NewMessageEndpoint(mc, p, h, a)
+	assert.NoError(t, err)
+
+	// start to listen
+	go e.Listen()
+
+	err = e.Send("127.0.0.1:11121", *msg)
+	assert.NoError(t, err)
+	wg.Wait()
 }
 
 func getAckMessage(seq, payload string) *pb.Message {

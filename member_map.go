@@ -89,13 +89,13 @@ type MemberMap struct {
 	members map[MemberID]Member
 
 	// This is for selecting k random member based on round-robin
-	waitingMembers []MemberID
+	waitingMembers []Member
 }
 
 func NewMemberMap() *MemberMap {
 	return &MemberMap{
 		members:        make(map[MemberID]Member),
-		waitingMembers: make([]MemberID, 0),
+		waitingMembers: make([]Member, 0),
 		lock:           sync.RWMutex{},
 	}
 }
@@ -103,7 +103,7 @@ func NewMemberMap() *MemberMap {
 // Select K random memberID from waitingMembers(length of returning member can be lower than k).
 // ** WaitingMembers are shuffled every time when members are updated **, so just returning first K item in waitingMembers is same as
 // selecting k random membersID.
-func (m *MemberMap) SelectKRandomMemberID(k int) []MemberID {
+func (m *MemberMap) SelectKRandomMemberID(k int) []Member {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
@@ -208,12 +208,12 @@ func (m *MemberMap) RemoveMember(member Member) error {
 
 // This function will be called when memberMap updated
 // Create waiting memberID List and shuffle
-func resetWaitingMembersID(memberMap map[MemberID]Member) []MemberID {
+func resetWaitingMembersID(memberMap map[MemberID]Member) []Member {
 
 	// Convert Map to List
-	waitingMembersID := make([]MemberID, 0)
+	waitingMembersID := make([]Member, 0)
 	for _, member := range memberMap {
-		waitingMembersID = append(waitingMembersID, member.ID)
+		waitingMembersID = append(waitingMembersID, member)
 	}
 
 	// Shuffle the list

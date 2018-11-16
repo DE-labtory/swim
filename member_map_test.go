@@ -140,7 +140,7 @@ func TestMemberMap_SelectKRandomMember(t *testing.T) {
 	for i := 0; i < len(m.GetMembers()); i++ {
 
 		// Get one random member which exists in members
-		assert.True(t, checkExist(members, m.SelectKRandomMemberID(1)[0]))
+		assert.True(t, checkExist(members, m.SelectKRandomMemberID(1)[0].ID))
 	}
 
 	// case 2: when k is larger then length of members
@@ -150,7 +150,7 @@ func TestMemberMap_SelectKRandomMember(t *testing.T) {
 	kMember := append(m.SelectKRandomMemberID(2), m.SelectKRandomMemberID(1)...)
 	assert.Equal(t, len(kMember), 3)
 	for _, member := range kMember {
-		assert.True(t, checkExist(members, member))
+		assert.True(t, checkExist(members, member.ID))
 	}
 }
 

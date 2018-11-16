@@ -250,6 +250,6 @@ func TestMemberMap_reset(t *testing.T) {
 	waitingMembersID := resetWaitingMembersID(memberMaps)
 
 	for _, member := range memberMaps {
-		assert.Contains(t, waitingMembersID, member.ID)
+		assert.Contains(t, waitingMembersID, member)
 	}
 }

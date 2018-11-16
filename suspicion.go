@@ -24,18 +24,22 @@ package swim
  * with this file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-import "time"
+import (
+	"math"
+	"sync/atomic"
+	"time"
+)
 
 // Suspicion manages the suspect timer and helps to accelerate the timeout
 // as member self got more independent confirmations that a target member is suspect.
 type Suspicion struct {
 
 	// n is the number of independent confirmations we've seen.
-	n uint32
+	n int32
 
 	// k is the maximum number of independent confirmation's we'd like to see
 	// this value is for making timer to drive @min value
-	k uint32
+	k int32
 
 	// min is the minimum timer value
 	min time.Duration
@@ -45,9 +49,14 @@ type Suspicion struct {
 
 	// start captures the timestamp when the suspect began the timer. This value is used
 	// for calculating durations
-	start time.Time
+	startTime time.Time
 
+	// timer is the underlying timer that implements the timeout.
 	timer *time.Timer
+
+	// timeoutHandler is the function to call when the timer expires. We hold on to this
+	// because there are cases where we call it directly.
+	timeoutHandler func()
 
 	// confirmations is a map for saving unique member id whose member also confirmed that
 	// given suspected node is suspect. This prevents double counting, the same confirmer will
@@ -55,23 +64,89 @@ type Suspicion struct {
 	confirmations map[MemberID]struct{}
 }
 
-// TODO: NewSuspicion returns a timer started with the max value, and according to
-// TODO: Lifeguard L2 (Dynamic Suspicion timeout) each unique confirmation will drive the timer
-// TODO: to min value
-func NewSuspicion(confirmer MemberID, k int, min time.Duration, max time.Duration) *Suspicion {
-	return &Suspicion{}
+// NewSuspicion returns a timer started with the max value, and according to
+// Lifeguard L2 (Dynamic Suspicion timeout) each unique confirmation will drive the timer
+// to min value
+func NewSuspicion(confirmer MemberID, k int, min time.Duration, max time.Duration, timeoutHandler func()) *Suspicion {
+
+	if timeoutHandler == nil {
+		panic("timeout handler can not be nil")
+	}
+
+	s := &Suspicion{
+		k:             int32(k),
+		min:           min,
+		max:           max,
+		confirmations: make(map[MemberID]struct{}),
+	}
+
+	// Exclude the from node from any confirmations.
+	s.confirmations[confirmer] = struct{}{}
+
+	// Pass the number of confirmations into the timeout function for
+	// easy telemetry.
+	s.timeoutHandler = timeoutHandler
+
+	// If there aren't any confirmations to be made then take the min
+	// time from the start.
+	timeout := max
+	if k < 1 {
+		timeout = min
+	}
+	s.timer = time.AfterFunc(timeout, s.timeoutHandler)
+
+	// Capture the start time right after starting the timer above so
+	// we should always err on the side of a little longer timeout if
+	// there's any preemption that separates this and the step above.
+	s.startTime = time.Now()
+	return s
 }
 
-// TODO: Confirm register new member who also determined the given suspected member as suspect.
-// TODO: This returns true if this confirmer is new, and false if it was a duplicate information
-// TODO: or if we've got enough confirmations to hit the value of timer to minimum
+// Confirm register new member who also determined the given suspected member as suspect.
+// This returns true if this confirmer is new, and false if it was a duplicate information
+// or if we've got enough confirmations to hit the value of timer to minimum
 func (s *Suspicion) Confirm(confirmer MemberID) bool {
-	return false
+	// If we've got enough confirmations then stop accepting them.
+	if atomic.LoadInt32(&s.n) >= s.k {
+		return false
+	}
+
+	// Only allow one confirmation from each possible peer.
+	if _, ok := s.confirmations[confirmer]; ok {
+		return false
+	}
+	s.confirmations[confirmer] = struct{}{}
+
+	// Compute the new timeout given the current number of confirmations and
+	// adjust the timer. If the timeout becomes negative *and* we can cleanly
+	// stop the timer then we will call the timeout function directly from
+	// here.
+	n := atomic.AddInt32(&s.n, 1)
+	elapsed := time.Since(s.startTime)
+	remaining := calcRemainingSuspicionTime(n, s.k, elapsed, s.min, s.max)
+	if s.timer.Stop() {
+		if remaining > 0 {
+			s.timer.Reset(remaining)
+		} else {
+			go s.timeoutHandler()
+		}
+	}
+	return true
 }
 
-// TODO: remainingSuspicionTime helps to calculate the remaining time to wait before suspected node
-// TODO: considered as a dead. The return value could be negative, in the case of return value
-// TODO: is negative, immediately fire the timer
-func calcRemainingSuspicionTime(n, k uint32, elapsed, min, max time.Duration) time.Duration {
-	return 0
+// CalcRemainingSuspicionTime takes the state variables of the suspicion timer and
+// calculates the remaining time to wait before considering a node dead. The
+// return value can be negative, so be prepared to fire the timer immediately in
+// that case.
+func calcRemainingSuspicionTime(n, k int32, elapsed, min, max time.Duration) time.Duration {
+	frac := math.Log(float64(n)+1.0) / math.Log(float64(k)+1.0)
+	raw := max.Seconds() - frac*(max.Seconds()-min.Seconds())
+	timeout := time.Duration(math.Floor(1000.0*raw)) * time.Millisecond
+	if timeout < min {
+		timeout = min
+	}
+
+	// We have to take into account the amount of time that has passed so
+	// far, so we get the right overall timeout.
+	return timeout - elapsed
 }

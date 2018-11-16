@@ -72,6 +72,10 @@ type Member struct {
 	// which tells that suspect member confirming that it is alive, and only when suspect
 	// got suspicion message, that member can increments incarnation
 	Incarnation uint32
+
+	// Suspicion manages the suspect timer and helps to accelerate the timeout
+	// as member self got more independent confirmations that a target member is suspect.
+	Suspicion Suspicion
 }
 
 // Convert member addr and port to string

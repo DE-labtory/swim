@@ -18,6 +18,7 @@ package swim
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/DE-labtory/swim/pb"
 	"github.com/gogo/protobuf/proto"
@@ -31,23 +32,25 @@ var ErrUnreachable = errors.New("Error this shouldn't reach")
 var ErrInvalidMessage = errors.New("Error invalid message")
 var ErrCallbackCollectIntervalNotSpecified = errors.New("Error callback collect interval should be specified")
 
-// sallback is called when target member sent back to local member a message
+// callback is called when target member sent back to local member a message
 // created field is for clean up the old callback
 type callback struct {
-	fn func(msg pb.Message)
+	fn      func(msg pb.Message)
 	created time.Time
 }
 
 // responseHandler manages callback functions
 type responseHandler struct {
-	callbacks map[string]callback
+	callbacks       map[string]callback
 	collectInterval time.Duration
+	lock            sync.RWMutex
 }
 
 func newResponseHandler(collectInterval time.Duration) *responseHandler {
 	h := &responseHandler{
-		callbacks: make(map[string]callback),
+		callbacks:       make(map[string]callback),
 		collectInterval: collectInterval,
+		lock:            sync.RWMutex{},
 	}
 
 	go h.collectCallback()
@@ -56,17 +59,23 @@ func newResponseHandler(collectInterval time.Duration) *responseHandler {
 }
 
 func (r *responseHandler) addCallback(seq string, cb callback) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
 	r.callbacks[seq] = cb
 }
 
 // Handle, each time other member sent back
 // a message, callback matching message's seq is called
 func (r *responseHandler) handle(msg pb.Message) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
 	seq := msg.Seq
 	cb, exist := r.callbacks[seq]
 
 	if exist == false {
-		iLogger.Panicf(nil, "Panic, no matching callback function")
+		iLogger.Error(nil, "Panic, no matching callback function")
 	}
 
 	cb.fn(msg)
@@ -74,6 +83,9 @@ func (r *responseHandler) handle(msg pb.Message) {
 }
 
 func (r *responseHandler) hasCallback(seq string) bool {
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
 	for s := range r.callbacks {
 		if seq == s {
 			return true
@@ -83,24 +95,25 @@ func (r *responseHandler) hasCallback(seq string) bool {
 }
 
 // collectCallback every time callbackCollectInterval expired clean up
-// the old (time.now - callback.created > time interval) callback deleted from map
+// the old (time.now - callback.created > time interval) callback delete from map
 // callbackCollectInterval specified in config
 func (r *responseHandler) collectCallback() {
 	timeout := r.collectInterval
-	T := time.NewTimer(timeout)
+	T := time.NewTicker(timeout)
 
 	for {
 		select {
-		case <- T.C:
+		case <-T.C:
 			for seq, cb := range r.callbacks {
 				if time.Now().Sub(cb.created) > timeout {
 					delete(r.callbacks, seq)
 				}
 			}
-			T = time.NewTimer(timeout)
 		}
 	}
 }
+
+const DefaultSendTimeout = time.Duration(0)
 
 type MessageEndpointConfig struct {
 	EncryptionEnabled  bool
@@ -154,11 +167,9 @@ func (m *MessageEndpoint) Listen() {
 			// this is determined by message's Seq property which work as message id
 
 			if m.resHandler.hasCallback(msg.Seq) {
-				m.resHandler.handle(msg)
+				go m.resHandler.handle(msg)
 			} else {
-				if err := m.handleMessage(msg); err != nil {
-					iLogger.Panic(nil, err.Error())
-				}
+				go m.handleMessage(msg)
 			}
 
 		case <-m.quit:
@@ -209,23 +220,24 @@ func validateMessage(msg pb.Message) bool {
 // to update member status and encrypt messages
 func (m *MessageEndpoint) handleMessage(msg pb.Message) error {
 	// validate message
-	if validateMessage(msg) {
-		// call delegate func to update members states
-		m.messageHandler.handle(msg)
-		return nil
+	if !validateMessage(msg) {
+		return ErrInvalidMessage
 	}
 
-	return ErrInvalidMessage
+	// call delegate func to update members states
+	m.messageHandler.handle(msg)
+	return nil
+
 }
 
 // determineSendTimeout if @timeout is given, then use this value as timeout value
 // otherwise calculate timeout value based on the awareness
 func (m *MessageEndpoint) determineSendTimeout(timeout time.Duration) time.Duration {
-	if timeout == time.Duration(0) {
-		return m.awareness.ScaleTimeout(m.config.DefaultSendTimeout)
+	if timeout != DefaultSendTimeout {
+		return timeout
 	}
 
-	return timeout
+	return m.awareness.ScaleTimeout(m.config.DefaultSendTimeout)
 }
 
 // SyncSend synchronously send message to member of addr, waits until response come back,
@@ -234,8 +246,9 @@ func (m *MessageEndpoint) determineSendTimeout(timeout time.Duration) time.Durat
 // timeout based on the its awareness
 func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Duration) (pb.Message, error) {
 	onSucc := make(chan pb.Message)
+	defer close(onSucc)
 
-	// if @interval provided then, use parameters, if not timeout determine by
+	// if @interval provided then, use parameters, if not, timeout determine by
 	// its awareness score
 	timeout := m.determineSendTimeout(interval)
 
@@ -246,7 +259,7 @@ func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Du
 
 	// register callback function, this callback function is called when
 	// member with @addr sent back us packet
-	m.resHandler.addCallback(msg.Seq, callback {
+	m.resHandler.addCallback(msg.Seq, callback{
 		fn: func(msg pb.Message) {
 			onSucc <- msg
 		},
@@ -265,8 +278,16 @@ func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Du
 
 	select {
 	case msg := <-onSucc:
+		// When message receive from @onSucc channel, that means we have successfully probe
+		// target member. In this case we decrease NSA(Node Self-Awareness) by 1
+		nsaDelta := -1
+		m.awareness.ApplyDelta(nsaDelta)
 		return msg, nil
 	case <-T.C:
+		// When response not come back in time, this means that we somehow failed probe target
+		// node, In this case we increase NSA by 1
+		nsaDelta := 1
+		m.awareness.ApplyDelta(nsaDelta)
 		return pb.Message{}, ErrSendTimeout
 	}
 
@@ -277,5 +298,17 @@ func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Du
 // after response came back, callback function executed, Send can be used in the case of
 // gossip message to other members
 func (m *MessageEndpoint) Send(addr string, msg pb.Message) error {
+	d, err := proto.Marshal(&msg)
+	if err != nil {
+		return err
+	}
+
+	// send the message
+	_, err = m.transport.WriteTo(d, addr)
+	if err != nil {
+		iLogger.Info(nil, err.Error())
+		return err
+	}
+
 	return nil
 }

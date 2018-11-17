@@ -154,6 +154,45 @@ func TestMemberMap_SelectKRandomMember(t *testing.T) {
 	}
 }
 
+func TestMemberMap_Reset(t *testing.T) {
+
+	// given
+	m := swim.NewMemberMap()
+	m.AddMember(swim.Member{
+		ID: swim.MemberID{
+			ID: "1",
+		},
+	})
+	m.AddMember(swim.Member{
+		ID: swim.MemberID{
+			ID: "2",
+		},
+	})
+	m.AddMember(swim.Member{
+		ID: swim.MemberID{
+			ID: "3",
+		},
+		Status: swim.Dead,
+	})
+
+	// when
+	m.Reset()
+
+	// then
+	members := m.GetMembers()
+	assert.Equal(t, len(m.GetMembers()), 2)
+	assert.Contains(t, members, swim.Member{
+		ID: swim.MemberID{
+			ID: "1",
+		},
+	})
+	assert.Contains(t, members, swim.Member{
+		ID: swim.MemberID{
+			ID: "2",
+		},
+	})
+}
+
 func checkExist(members []swim.Member, memberID swim.MemberID) bool {
 	for _, members := range members {
 		if members.ID == memberID {

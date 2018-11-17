@@ -22,6 +22,54 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestMemberMap_Alive_Internal(t *testing.T) {
+	m := NewMemberMap()
+
+	//when member 1 suspectedMember
+	//when Incarnation Number of Parameter of Alive Func is bigger than member in memberList
+	m.members[MemberID{ID:"1"}] = Member{
+		ID: MemberID{
+			ID: "1",
+		},
+		Incarnation: 1,
+		Status:      Suspected,
+	}
+	isChanged, err := m.Alive(Member{
+		ID: MemberID{
+			ID: "1",
+		},
+		Incarnation: 2,
+		Status:      Alive,
+	})
+
+	//Then
+	assert.Nil(t, err)
+	assert.Equal(t, true, isChanged)
+	assert.Equal(t, Alive, m.members[MemberID{ID:"1"}].Status)
+
+	//when
+	m.members[MemberID{ID:"1"}] = Member{
+		ID: MemberID{
+			ID: "1",
+		},
+		Incarnation: 5,
+		Status:      Suspected,
+	}
+
+	isChanged2, err := m.Alive(Member{
+		ID: MemberID{
+			ID: "1",
+		},
+		Incarnation: 4,
+		Status:      Alive,
+	})
+
+	assert.Equal(t, ErrIncarnation, err)
+	assert.Equal(t, false, isChanged2)
+	assert.Equal(t, Suspected, m.members[MemberID{ID:"1"}].Status)
+
+}
+
 // Override will override member status based on incarnation number and status.
 // Overriding rules are following...
 

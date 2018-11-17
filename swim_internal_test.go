@@ -20,7 +20,7 @@ import (
 	"sync"
 	"testing"
 	"time"
-)
+	)
 
 func TestSWIM_ShutDown(t *testing.T) {
 	s := New(&Config{
@@ -31,13 +31,13 @@ func TestSWIM_ShutDown(t *testing.T) {
 	})
 
 	m := NewMemberMap()
-	m.AddMember(Member{
+	m.Alive(Member{
 		ID: MemberID{
 			ID: "1",
 		},
 	})
 
-	m.AddMember(Member{
+	m.Alive(Member{
 		ID: MemberID{
 			ID: "2",
 		},

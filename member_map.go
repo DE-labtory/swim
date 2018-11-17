@@ -27,6 +27,7 @@ import (
 )
 
 var ErrEmptyMemberID = errors.New("MemberID is empty")
+var ErrIncarnation = errors.New("New Member Incarnation Number is smaller than Member in MemberList")
 
 // Status of members
 type Status int
@@ -140,7 +141,6 @@ func (m *MemberMap) GetMembers() []Member {
 	return members
 }
 
-
 // Override will override member status based on incarnation number and status.
 //
 // Overriding rules are following...
@@ -188,16 +188,15 @@ func (m *MemberMap) Alive(member Member) (bool, error) {
 	}
 	// Check whether it is already exist
 	existingMem, isExist := m.members[member.GetID()]
+	// if Member is not exist in MemberList
 	if !isExist {
-		// if Member is not exist in MemberList
-		member.Status = Alive
 		m.members[member.GetID()] = member
 		return true, nil
 	}
 
 	// Check incarnation
 	if member.Incarnation < existingMem.Incarnation {
-		return false, nil
+		return false, ErrIncarnation
 	}
 
 	member.Status = Alive

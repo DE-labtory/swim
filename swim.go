@@ -19,7 +19,10 @@ package swim
 import (
 	"time"
 
+	"log"
+
 	"github.com/DE-labtory/swim/pb"
+	"github.com/rs/xid"
 )
 
 type Config struct {
@@ -35,6 +38,10 @@ type Config struct {
 
 	// K is the number of members to send indirect ping
 	K int
+
+	// my address and port
+	BindAddress string
+	BindPort    int
 }
 
 type SWIM struct {
@@ -45,21 +52,51 @@ type SWIM struct {
 	// Currently connected memberList
 	memberMap *MemberMap
 
+	messageEndpoint *MessageEndpoint
+
+	priorityPBStore *PriorityPBStore
+
 	// FailureDetector quit channel
 	quitFD chan struct{}
 }
 
-func New(config *Config) *SWIM {
-
+func New(config *Config, messageEndpointConfig MessageEndpointConfig, awareness *Awareness) *SWIM {
 	if config.T < config.AckTimeOut {
 		panic("T time must be longer than ack time-out")
 	}
 
-	return &SWIM{
-		config:    config,
-		memberMap: NewMemberMap(),
-		quitFD:    make(chan struct{}),
+	swim := SWIM{
+		config:          config,
+		memberMap:       NewMemberMap(),
+		messageEndpoint: nil,
+		priorityPBStore: NewPriorityPBStore(config.MaxlocalCount),
+		quitFD:          make(chan struct{}),
 	}
+
+	messageEndpoint := setMessageEndpoint(config, messageEndpointConfig, &swim, awareness)
+	swim.messageEndpoint = messageEndpoint
+
+	return &swim
+}
+
+// set MessageEndpoint
+func setMessageEndpoint(config *Config, messageEndpointConfig MessageEndpointConfig, messageHandler MessageHandler, awareness *Awareness) *MessageEndpoint {
+	packetTransportConfig := PacketTransportConfig{
+		BindAddress: config.BindAddress,
+		BindPort:    config.BindPort,
+	}
+
+	packetTransport, err := NewPacketTransport(&packetTransportConfig)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	messageEndpoint, err := NewMessageEndpoint(messageEndpointConfig, packetTransport, messageHandler, awareness)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return messageEndpoint
 }
 
 // Start SWIM protocol.
@@ -182,7 +219,15 @@ func (s *SWIM) handle(msg pb.Message) {
 
 	switch msg.Payload.(type) {
 	case *pb.Message_Ping:
-		// handle ping
+		Address := s.config.BindAddress + ":" + string(s.config.BindPort)
+		s.messageEndpoint.Send(msg.Address, pb.Message{
+			Seq:     xid.New().String(),
+			Address: Address,
+			Payload: &pb.Message_Ack{
+				Ack: &pb.Ack{Payload: ""},
+			},
+			PiggyBack: &pb.PiggyBack{},
+		})
 	case *pb.Message_Ack:
 		// handle ack
 	case *pb.Message_IndirectPing:

@@ -28,7 +28,14 @@ func TestSWIM_ShutDown(t *testing.T) {
 		T:             4000,
 		AckTimeOut:    1000,
 		MaxlocalCount: 1,
-	})
+		BindAddress: "127.0.0.1",
+		BindPort: 3000,
+	},
+	MessageEndpointConfig{
+			CallbackCollectInterval: 1000,
+	},
+	&Awareness{},
+	)
 
 	m := NewMemberMap()
 	m.AddMember(Member{

@@ -28,17 +28,24 @@ func TestSWIM_ShutDown(t *testing.T) {
 		T:             4000,
 		AckTimeOut:    1000,
 		MaxlocalCount: 1,
-	})
+		BindAddress:   "127.0.0.1",
+		BindPort:      3000,
+	},
+		MessageEndpointConfig{
+			CallbackCollectInterval: 1000,
+		},
+		&Awareness{},
+	)
 
 	m := NewMemberMap()
-	m.AddMember(Member{
-		ID: MemberID{
+	m.Alive(AliveMessage{
+		MemberMessage: MemberMessage{
 			ID: "1",
 		},
 	})
 
-	m.AddMember(Member{
-		ID: MemberID{
+	m.Alive(AliveMessage{
+		MemberMessage: MemberMessage{
 			ID: "2",
 		},
 	})
@@ -60,4 +67,8 @@ func TestSWIM_ShutDown(t *testing.T) {
 	s.ShutDown()
 
 	wg.Wait()
+}
+
+func TestSWIM_handlePbk(t *testing.T) {
+
 }

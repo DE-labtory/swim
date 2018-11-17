@@ -19,7 +19,10 @@ package swim
 import (
 	"time"
 
+	"log"
+
 	"github.com/DE-labtory/swim/pb"
+	"github.com/it-chain/iLogger"
 )
 
 type Config struct {
@@ -35,6 +38,10 @@ type Config struct {
 
 	// K is the number of members to send indirect ping
 	K int
+
+	// my address and port
+	BindAddress string
+	BindPort    int
 }
 
 type SWIM struct {
@@ -45,21 +52,53 @@ type SWIM struct {
 	// Currently connected memberList
 	memberMap *MemberMap
 
+	messageEndpoint *MessageEndpoint
+
+	priorityPBStore *PriorityPBStore
+
 	// FailureDetector quit channel
 	quitFD chan struct{}
+
+	// Piggyback-store which store messages about recent state changes of member.
+	pbkStore PBkStore
 }
 
-func New(config *Config) *SWIM {
-
+func New(config *Config, messageEndpointConfig MessageEndpointConfig, awareness *Awareness) *SWIM {
 	if config.T < config.AckTimeOut {
 		panic("T time must be longer than ack time-out")
 	}
 
-	return &SWIM{
-		config:    config,
-		memberMap: NewMemberMap(),
-		quitFD:    make(chan struct{}),
+	swim := SWIM{
+		config:          config,
+		memberMap:       NewMemberMap(),
+		messageEndpoint: nil,
+		priorityPBStore: NewPriorityPBStore(config.MaxlocalCount),
+		quitFD:          make(chan struct{}),
 	}
+
+	messageEndpoint := messageEndpointFactory(config, messageEndpointConfig, &swim, awareness)
+	swim.messageEndpoint = messageEndpoint
+
+	return &swim
+}
+
+func messageEndpointFactory(config *Config, messageEndpointConfig MessageEndpointConfig, messageHandler MessageHandler, awareness *Awareness) *MessageEndpoint {
+	packetTransportConfig := PacketTransportConfig{
+		BindAddress: config.BindAddress,
+		BindPort:    config.BindPort,
+	}
+
+	packetTransport, err := NewPacketTransport(&packetTransportConfig)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	messageEndpoint, err := NewMessageEndpoint(messageEndpointConfig, packetTransport, messageHandler, awareness)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return messageEndpoint
 }
 
 // Start SWIM protocol.
@@ -182,7 +221,7 @@ func (s *SWIM) handle(msg pb.Message) {
 
 	switch msg.Payload.(type) {
 	case *pb.Message_Ping:
-		// handle ping
+		s.pingHandler(msg)
 	case *pb.Message_Ack:
 		// handle ack
 	case *pb.Message_IndirectPing:
@@ -194,5 +233,54 @@ func (s *SWIM) handle(msg pb.Message) {
 
 // handle piggyback related to member status
 func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
+
+	// Check if piggyback message changes memberMap.
+	hasChanged := false
+
+	switch piggyBack.Type {
+	case pb.PiggyBack_Alive:
+		// Call Alive function in memberMap.
+	case pb.PiggyBack_Confirm:
+		// Call Confirm function in memberMap.
+	case pb.PiggyBack_Suspect:
+		// Call Suspect function in memberMap.
+	default:
+		// PiggyBack_type error
+	}
+
+	// Push piggyback when status of membermap has updated.
+	// If the content of the piggyback is about a new state change,
+	// it must propagate to inform the network of the new state change.
+	if hasChanged {
+		s.pbkStore.Push(*piggyBack)
+	}
+}
+
+// handlePing send back Ack message by response
+func (s *SWIM) pingHandler(msg pb.Message) {
+	Address := s.config.BindAddress + ":" + string(s.config.BindPort)
+
+	piggyBack, err := s.priorityPBStore.Get()
+	if err != nil {
+		iLogger.Error(nil, err.Error())
+	}
+
+	s.messageEndpoint.Send(msg.Address, pb.Message{
+		Id:      msg.Id,
+		Address: Address,
+		Payload: &pb.Message_Ack{
+			Ack: &pb.Ack{Payload: ""},
+		},
+		PiggyBack: &piggyBack,
+	})
+}
+
+//TODO
+func (s *SWIM) ackHandler(msg pb.Message) {
+
+}
+
+//TODO
+func (s *SWIM) indirectPingHandler(msg pb.Message) {
 
 }

@@ -17,6 +17,8 @@
 package swim
 
 import (
+	"github.com/it-chain/iLogger"
+	"github.com/rs/xid"
 	"time"
 
 	"github.com/DE-labtory/swim/pb"
@@ -44,6 +46,9 @@ type SWIM struct {
 
 	// Currently connected memberList
 	memberMap *MemberMap
+
+	// messageEndpoint work both as message transmitter and message receiver
+	messageEndpoint *MessageEndpoint
 
 	// FailureDetector quit channel
 	quitFD chan struct{}
@@ -219,3 +224,25 @@ func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 		s.pbkStore.Push(*piggyBack)
 	}
 }
+
+func (s *SWIM) handleIndirectPing(msg pb.Message) {
+	seq := msg.Seq
+	id := msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target
+	member := s.memberMap.members[MemberID{ID: id}]
+
+	ping := pb.Message{
+		Seq: xid.New().String(),
+		Payload: &pb.Message_Ping{
+			Ping: &pb.Ping{},
+		},
+	}
+
+	_, err := s.messageEndpoint.SyncSend(member.Addr.String(), ping, DefaultSendTimeout)
+	if err != nil {
+		iLogger.Error(nil, err.Error())
+		return
+	}
+
+
+}
+

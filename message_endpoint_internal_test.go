@@ -522,17 +522,14 @@ func TestMessageEndpoint_SyncSend_TwoMembers(t *testing.T) {
 	// sender
 	sender, err := NewMessageEndpoint(senderConfig, p2, h2, a2)
 
-	defer func() {
-		receiver.Shutdown()
-		sender.Shutdown()
-	}()
-
 	// start to listen
 	go receiver.Listen()
 	go sender.Listen()
 
 	// mocking receiver sent-back to sender a response
 	// by continuously send ack message to sender every 1 sec
+
+	quit := make(chan bool)
 	go func() {
 		T := time.NewTicker(time.Second)
 
@@ -540,8 +537,16 @@ func TestMessageEndpoint_SyncSend_TwoMembers(t *testing.T) {
 			select {
 			case <-T.C:
 				receiver.Send("127.0.0.1:11131", *msg)
+			case <-quit:
+				return
 			}
 		}
+	}()
+
+	defer func() {
+		receiver.Shutdown()
+		sender.Shutdown()
+		quit <- true
 	}()
 
 	// sender sends message to receiver, and receiver send back a ack message

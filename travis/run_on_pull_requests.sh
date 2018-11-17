@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # goimports test
-diff <(goimports -d $(find . -type f -name '*.go')) <(printf "")
+diff <(goimports -d $(find . -type f -name '*.go' -not -path "*/vendor/*")) <(printf "")
 
 if [ $? -ne 0 ]; then
 echo "goimports format error" >&2

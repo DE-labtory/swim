@@ -53,7 +53,7 @@ func newResponseHandler(collectInterval time.Duration) *responseHandler {
 		lock:            sync.RWMutex{},
 	}
 
-	go h.collectCallback()
+	go h.collectGarbageCallback()
 
 	return h
 }
@@ -97,7 +97,7 @@ func (r *responseHandler) hasCallback(seq string) bool {
 // collectCallback every time callbackCollectInterval expired clean up
 // the old (time.now - callback.created > time interval) callback delete from map
 // callbackCollectInterval specified in config
-func (r *responseHandler) collectCallback() {
+func (r *responseHandler) collectGarbageCallback() {
 	timeout := r.collectInterval
 	T := time.NewTicker(timeout)
 
@@ -159,7 +159,7 @@ func (m *MessageEndpoint) Listen() {
 			// validate packet then convert it to message
 			msg, err := m.processPacket(*packet)
 			if err != nil {
-				iLogger.Panic(nil, err.Error())
+				iLogger.Error(nil, err.Error())
 			}
 
 			// before message that come from other handle by MessageHandler
@@ -269,7 +269,7 @@ func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Du
 	// send the message
 	_, err = m.transport.WriteTo(d, addr)
 	if err != nil {
-		iLogger.Info(nil, err.Error())
+		iLogger.Error(nil, err.Error())
 		return pb.Message{}, err
 	}
 

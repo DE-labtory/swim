@@ -18,7 +18,6 @@ package swim
 
 import (
 	"errors"
-	"math/rand"
 	"net"
 	"strconv"
 	"sync"
@@ -26,7 +25,6 @@ import (
 )
 
 var ErrEmptyMemberID = errors.New("MemberID is empty")
-var ErrIncarnation = errors.New("New Member Incarnation Number is smaller than Member in MemberList")
 
 // Status of members
 type Status int
@@ -104,7 +102,7 @@ func (m *Member) GetID() MemberID {
 
 type MemberMap struct {
 	lock    sync.RWMutex
-	members map[MemberID]Member
+	members map[MemberID]*Member
 
 	// This is for selecting k random member based on round-robin
 	waitingMembers []Member
@@ -112,7 +110,7 @@ type MemberMap struct {
 
 func NewMemberMap() *MemberMap {
 	return &MemberMap{
-		members:        make(map[MemberID]Member),
+		members:        make(map[MemberID]*Member),
 		waitingMembers: make([]Member, 0),
 		lock:           sync.RWMutex{},
 	}
@@ -122,26 +120,7 @@ func NewMemberMap() *MemberMap {
 // ** WaitingMembers are shuffled every time when members are updated **, so just returning first K item in waitingMembers is same as
 // selecting k random membersID.
 func (m *MemberMap) SelectKRandomMemberID(k int) []Member {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	// If length of members is lower then k,
-	// return current waitingMembers and Reset waitingMembers.
-	if len(m.waitingMembers) < k {
-		kMembers := m.waitingMembers
-		defer func() { m.waitingMembers = resetWaitingMembersID(m.members) }()
-		return kMembers
-	}
-
-	// Remove first k membersID.
-	kMembers := m.waitingMembers[:k]
-	m.waitingMembers = m.waitingMembers[k:len(m.waitingMembers)]
-
-	if len(m.waitingMembers) == 0 {
-		m.waitingMembers = resetWaitingMembersID(m.members)
-	}
-
-	return kMembers
+	return nil
 }
 
 func (m *MemberMap) GetMembers() []Member {
@@ -150,7 +129,7 @@ func (m *MemberMap) GetMembers() []Member {
 
 	members := make([]Member, 0)
 	for _, v := range m.members {
-		members = append(members, v)
+		members = append(members, *v)
 	}
 
 	return members
@@ -210,21 +189,23 @@ func (m *MemberMap) Alive(aliveMessage AliveMessage) (bool, error) {
 
 	// if Member is not exist in MemberList
 	if !ok {
-		m.members[MemberID{aliveMessage.ID}] = updateMember(aliveMessage.MemberMessage, Alive)
+		m.members[MemberID{aliveMessage.ID}] = createMember(aliveMessage.MemberMessage, Alive)
 		return true, nil
 	}
 	// Check incarnation
 	if aliveMessage.Incarnation <= existingMem.Incarnation {
-		return false, ErrIncarnation
+		return false, nil
 	}
 
 	// update Member
-	m.members[MemberID{aliveMessage.ID}] = updateMember(aliveMessage.MemberMessage, Alive)
+	existingMem.Status = Alive
+	existingMem.Incarnation = aliveMessage.Incarnation
+	existingMem.LastStatusChange = time.Now()
 	return true, nil
 }
 
-func updateMember(message MemberMessage, status Status) Member {
-	return Member{
+func createMember(message MemberMessage, status Status) *Member {
+	return &Member{
 		ID:               MemberID{message.ID},
 		Addr:             message.Addr,
 		Port:             message.Port,
@@ -240,26 +221,6 @@ func (m *MemberMap) RemoveMember(member Member) error {
 	return nil
 }
 
-// This function will be called when memberMap updated
-// Create waiting memberID List and shuffle
-func resetWaitingMembersID(memberMap map[MemberID]Member) []Member {
-
-	// Convert Map to List
-	waitingMembersID := make([]Member, 0)
-	for _, member := range memberMap {
-		waitingMembersID = append(waitingMembersID, member)
-	}
-
-	// Shuffle the list
-	r := rand.New(rand.NewSource(time.Now().Unix()))
-	for n := len(waitingMembersID); n > 0; n-- {
-		randIndex := r.Intn(n)
-		waitingMembersID[n-1], waitingMembersID[randIndex] = waitingMembersID[randIndex], waitingMembersID[n-1]
-	}
-
-	return waitingMembersID
-}
-
 // Delete all dead node,
 // Reset waiting list,
 func (m *MemberMap) Reset() {
@@ -272,6 +233,4 @@ func (m *MemberMap) Reset() {
 			delete(m.members, k)
 		}
 	}
-
-	m.waitingMembers = resetWaitingMembersID(m.members)
 }

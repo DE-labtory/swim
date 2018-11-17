@@ -5,13 +5,16 @@ message Message {
 
     string seq = 1;
 
+    //
+    string address = 2;
+
     oneof payload {
-        Ping ping = 2;
-        Ack ack = 3;
-        IndirectPing indirect_ping = 4;
+        Ping ping = 3;
+        Ack ack = 4;
+        IndirectPing indirect_ping = 5;
     }
 
-    PiggyBack piggyBack = 5;
+    PiggyBack piggyBack = 6;
 }
 
 message Ping {
@@ -29,10 +32,19 @@ message IndirectPing{
 
 message PiggyBack{
 
-    string id = 1;
     // status
-    // 0 - Unknown, 1 - Alive, 2 - Suspected, 3 - Dead
-    int32 status = 2;
+    // 0 - Alive, 1 - Suspect, 2 - Confirm
+    enum Type {
+        Alive = 0;
+        Suspect = 1;
+        Confirm = 2;
+    }
 
-    string address = 3;
+    Type type = 1;
+
+    string id = 2;
+
+    string incarnation = 3;
+
+    string address = 4;
 }

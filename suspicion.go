@@ -25,6 +25,7 @@ package swim
  */
 
 import (
+	"errors"
 	"math"
 	"sync/atomic"
 	"time"
@@ -67,10 +68,10 @@ type Suspicion struct {
 // NewSuspicion returns a timer started with the max value, and according to
 // Lifeguard L2 (Dynamic Suspicion timeout) each unique confirmation will drive the timer
 // to min value
-func NewSuspicion(confirmer MemberID, k int, min time.Duration, max time.Duration, timeoutHandler func()) *Suspicion {
+func NewSuspicion(confirmer MemberID, k int, min time.Duration, max time.Duration, timeoutHandler func()) (*Suspicion, error) {
 
 	if timeoutHandler == nil {
-		panic("timeout handler can not be nil")
+		return nil, errors.New("timeout handler can not be nil")
 	}
 
 	s := &Suspicion{
@@ -98,8 +99,9 @@ func NewSuspicion(confirmer MemberID, k int, min time.Duration, max time.Duratio
 	// Capture the start time right after starting the timer above so
 	// we should always err on the side of a little longer timeout if
 	// there's any preemption that separates this and the step above.
+
 	s.startTime = time.Now()
-	return s
+	return s, nil
 }
 
 // Confirm register new member who also determined the given suspected member as suspect.

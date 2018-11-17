@@ -16,12 +16,29 @@
 
 package swim_test
 
-import "testing"
+import (
+	"testing"
+	"time"
+
+	"github.com/DE-labtory/swim"
+	"github.com/stretchr/testify/assert"
+)
 
 func TestSuspicion_Confirm(t *testing.T) {
 
-}
+	// given
+	timeoutHandler := func() {}
 
-func TestNewSuspicion(t *testing.T) {
+	s, err := swim.NewSuspicion(swim.MemberID{ID: "me"}, 3, 2*time.Second, 5*time.Second, timeoutHandler)
+	assert.NoError(t, err)
 
+	f := s.Confirm(swim.MemberID{ID: "test"})
+	assert.True(t, f)
+
+	// when
+	// check duplicated member confirm
+	f = s.Confirm(swim.MemberID{ID: "test"})
+
+	// then
+	assert.False(t, f)
 }

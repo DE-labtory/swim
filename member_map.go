@@ -18,12 +18,11 @@ package swim
 
 import (
 	"errors"
+	"math/rand"
 	"net"
 	"strconv"
 	"sync"
 	"time"
-
-	"math/rand"
 )
 
 var ErrEmptyMemberID = errors.New("MemberID is empty")
@@ -75,6 +74,22 @@ type Member struct {
 	// Suspicion manages the suspect timer and helps to accelerate the timeout
 	// as member self got more independent confirmations that a target member is suspect.
 	Suspicion *Suspicion
+}
+
+type MemberMessage struct {
+	ID          string
+	Addr        net.IP
+	Port        uint16
+	Incarnation uint32
+}
+
+// Suspect message struct
+type SuspectMessage struct {
+	MemberMessage
+}
+
+type AliveMessage struct {
+	MemberMessage
 }
 
 // Convert member addr and port to string
@@ -175,33 +190,48 @@ func override(newMem Member, existingMem Member) Member {
 	return existingMem
 }
 
-// Update member and update waitingMembers
-// if Member status in MemberList is changed return true else return false
-func (m *MemberMap) Alive(member Member) (bool, error) {
+// Process Alive message
+// Return 2 parameter bool, error bool means Changed in MemberList
+// 1. If aliveMessage Id is empty return false and ErrEmptyMemberID
+// 2. if aliveMessage Id is not in MemberList then Create Member and Add MemberList
+// 3. if aliveMessage Id is in MemberList and existingMember's Incarnation is bigger than AliveMessage's Incarnation Than return false, ErrIncarnation
+// 4. if aliveMessage Id is in MemberList and AliveMessage's Incarnation is bigger than existingMember's Incarnation Than Update Member and Return true, nil
+func (m *MemberMap) Alive(aliveMessage AliveMessage) (bool, error) {
 
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	// Check whether Member Id empty
-	if member.GetID().ID == "" {
+	if aliveMessage.ID == "" {
 		return false, ErrEmptyMemberID
 	}
 	// Check whether it is already exist
-	existingMem, isExist := m.members[member.GetID()]
+	existingMem, ok := m.members[MemberID{aliveMessage.ID}]
+
 	// if Member is not exist in MemberList
-	if !isExist {
-		m.members[member.GetID()] = member
+	if !ok {
+		m.members[MemberID{aliveMessage.ID}] = updateMember(aliveMessage.MemberMessage, Alive)
 		return true, nil
 	}
-
 	// Check incarnation
-	if member.Incarnation < existingMem.Incarnation {
+	if aliveMessage.Incarnation <= existingMem.Incarnation {
 		return false, ErrIncarnation
 	}
 
-	member.Status = Alive
-	m.members[member.GetID()] = member
+	// update Member
+	m.members[MemberID{aliveMessage.ID}] = updateMember(aliveMessage.MemberMessage, Alive)
 	return true, nil
+}
+
+func updateMember(message MemberMessage, status Status) Member {
+	return Member{
+		ID:               MemberID{message.ID},
+		Addr:             message.Addr,
+		Port:             message.Port,
+		Status:           status,
+		LastStatusChange: time.Now(),
+		Incarnation:      message.Incarnation,
+	}
 }
 
 // Remove member and update waitingMembers

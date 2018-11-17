@@ -244,5 +244,4 @@ func (m *MemberMap) Reset() {
 	}
 
 	m.waitingMembers = resetWaitingMembersID(m.members)
-
 }

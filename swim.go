@@ -47,6 +47,9 @@ type SWIM struct {
 
 	// FailureDetector quit channel
 	quitFD chan struct{}
+
+	// Piggyback-store which store messages about recent state changes of member.
+	pbkStore PBkStore
 }
 
 func New(config *Config) *SWIM {
@@ -195,4 +198,24 @@ func (s *SWIM) handle(msg pb.Message) {
 // handle piggyback related to member status
 func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 
+	// Check if piggyback message changes memberMap.
+	hasChanged := false
+
+	switch piggyBack.Type {
+	case pb.PiggyBack_Alive:
+		// Call Alive function in memberMap.
+	case pb.PiggyBack_Confirm:
+		// Call Confirm function in memberMap.
+	case pb.PiggyBack_Suspect:
+		// Call Suspect function in memberMap.
+	default:
+		// PiggyBack_type error
+	}
+
+	// Push piggyback when status of membermap has updated.
+	// If the content of the piggyback is about a new state change,
+	// it must propagate to inform the network of the new state change.
+	if hasChanged {
+		s.pbkStore.Push(*piggyBack)
+	}
 }

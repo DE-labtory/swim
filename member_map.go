@@ -32,7 +32,6 @@ var ErrEmptyMemberID = errors.New("MemberID is empty")
 type Status int
 
 const (
-
 	// Unknown status of a member
 	Unknown Status = iota
 
@@ -52,7 +51,6 @@ type MemberID struct {
 
 // Struct of Member
 type Member struct {
-
 	// Id of member
 	ID MemberID
 
@@ -142,27 +140,6 @@ func (m *MemberMap) GetMembers() []Member {
 	return members
 }
 
-func (m *MemberMap) AddMember(member Member) error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-
-	// If id is empty return error
-	if member.GetID().ID == "" {
-		return ErrEmptyMemberID
-	}
-
-	// Check whether it is already exist
-	exMem, ok := m.members[member.GetID()]
-	if ok {
-		// Apply override Rule
-		member = override(member, exMem)
-	}
-
-	m.members[member.GetID()] = member
-
-	m.waitingMembers = resetWaitingMembersID(m.members)
-	return nil
-}
 
 // Override will override member status based on incarnation number and status.
 //
@@ -199,9 +176,33 @@ func override(newMem Member, existingMem Member) Member {
 }
 
 // Update member and update waitingMembers
-// todo
-func (m *MemberMap) UpdateMember(member Member) error {
-	return nil
+// if Member status in MemberList is changed return true else return false
+func (m *MemberMap) Alive(member Member) (bool, error) {
+
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	// Check whether Member Id empty
+	if member.GetID().ID == "" {
+		return false, ErrEmptyMemberID
+	}
+	// Check whether it is already exist
+	existingMem, isExist := m.members[member.GetID()]
+	if !isExist {
+		// if Member is not exist in MemberList
+		member.Status = Alive
+		m.members[member.GetID()] = member
+		return true, nil
+	}
+
+	// Check incarnation
+	if member.Incarnation < existingMem.Incarnation {
+		return false, nil
+	}
+
+	member.Status = Alive
+	m.members[member.GetID()] = member
+	return true, nil
 }
 
 // Remove member and update waitingMembers

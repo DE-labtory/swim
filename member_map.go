@@ -108,7 +108,7 @@ func (m *MemberMap) SelectKRandomMemberID(k int) []Member {
 	defer m.lock.Unlock()
 
 	// If length of members is lower then k,
-	// return current waitingMembers and reset waitingMembers.
+	// return current waitingMembers and Reset waitingMembers.
 	if len(m.waitingMembers) < k {
 		kMembers := m.waitingMembers
 		defer func() { m.waitingMembers = resetWaitingMembersID(m.members) }()
@@ -228,6 +228,17 @@ func resetWaitingMembersID(memberMap map[MemberID]Member) []Member {
 
 // Delete all dead node,
 // Reset waiting list,
-func (m *MemberMap) reset() {
+func (m *MemberMap) Reset() {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	// delete dead status node
+	for k, member := range m.members {
+		if member.Status == Dead {
+			delete(m.members, k)
+		}
+	}
+
+	m.waitingMembers = resetWaitingMembersID(m.members)
 
 }

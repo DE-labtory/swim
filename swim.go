@@ -102,7 +102,7 @@ func (s *SWIM) ShutDown() {
 //
 // 1. Pick a member from memberMap.
 // 2. Probe the member.
-// 3. After finishing probing all members, reset memberMap
+// 3. After finishing probing all members, Reset memberMap
 //
 func (s *SWIM) startFailureDetector() {
 
@@ -115,7 +115,7 @@ func (s *SWIM) startFailureDetector() {
 			}
 
 			// Reset memberMap.
-			s.memberMap.reset()
+			s.memberMap.Reset()
 		}
 	}()
 

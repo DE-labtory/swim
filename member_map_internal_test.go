@@ -242,13 +242,12 @@ func TestMember_override_dead_alive(t *testing.T) {
 
 func TestMemberMap_reset(t *testing.T) {
 	memberMaps := map[MemberID]Member{
-		MemberID{ID: "1"}: Member{ID: MemberID{ID: "1"}},
-		MemberID{ID: "2"}: Member{ID: MemberID{ID: "2"}},
-		MemberID{ID: "3"}: Member{ID: MemberID{ID: "3"}},
+		MemberID{ID: "1"}: {ID: MemberID{ID: "1"}},
+		MemberID{ID: "2"}: {ID: MemberID{ID: "2"}},
+		MemberID{ID: "3"}: {ID: MemberID{ID: "3"}},
 	}
 
 	waitingMembersID := resetWaitingMembersID(memberMaps)
-
 	for _, member := range memberMaps {
 		assert.Contains(t, waitingMembersID, member)
 	}

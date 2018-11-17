@@ -44,7 +44,7 @@ message PiggyBack{
 
     string id = 2;
 
-    string incarnation = 3;
+    uint32 incarnation = 3;
 
     string address = 4;
 }

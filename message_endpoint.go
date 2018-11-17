@@ -19,12 +19,11 @@ package swim
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/DE-labtory/swim/pb"
 	"github.com/gogo/protobuf/proto"
 	"github.com/it-chain/iLogger"
-
-	"time"
 )
 
 var ErrSendTimeout = errors.New("Error send timeout")

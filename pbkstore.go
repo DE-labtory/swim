@@ -20,6 +20,8 @@ import (
 	"container/heap"
 	"errors"
 	"sync"
+
+	"github.com/DE-labtory/swim/pb"
 )
 
 var ErrStoreEmpty = errors.New("empty store")
@@ -38,8 +40,8 @@ const (
 
 type PBkStore interface {
 	Len() int
-	Push(b []byte)
-	Get() ([]byte, error)
+	Push(pbk pb.PiggyBack)
+	Get() (pb.PiggyBack, error)
 	IsEmpty() bool
 }
 
@@ -67,15 +69,14 @@ func (p *PriorityPBStore) Len() int {
 	return p.q.Len()
 }
 
-// Enqueue []byte into list.
 // Initially, set the local count to zero.
 // If the queue size is max, delete the data with the highest localcount and insert it.
-func (p *PriorityPBStore) Push(pbkData []byte) {
+func (p *PriorityPBStore) Push(pbk pb.PiggyBack) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
 	item := &Item{
-		value:    pbkData,
+		value:    pbk,
 		priority: InitialPriority,
 	}
 
@@ -84,20 +85,20 @@ func (p *PriorityPBStore) Push(pbkData []byte) {
 
 // Return the piggyback data with the smallest local count in the list,
 // increment the local count and sort it again, not delete the data.
-func (p *PriorityPBStore) Get() ([]byte, error) {
+func (p *PriorityPBStore) Get() (pb.PiggyBack, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
 	// Check empty
 	if len(p.q) == 0 {
-		return nil, ErrStoreEmpty
+		return pb.PiggyBack{}, ErrStoreEmpty
 	}
 
 	// Pop from queue
 	item := heap.Pop(&p.q).(*Item)
-	b, ok := item.value.([]byte)
+	pbk, ok := item.value.(pb.PiggyBack)
 	if !ok {
-		return nil, ErrPopInvalidType
+		return pb.PiggyBack{}, ErrPopInvalidType
 	}
 
 	// If an item has been retrieved by maxPriority, remove it.
@@ -107,7 +108,7 @@ func (p *PriorityPBStore) Get() ([]byte, error) {
 		heap.Push(&p.q, item)
 	}
 
-	return b, nil
+	return pbk, nil
 }
 
 func (p *PriorityPBStore) IsEmpty() bool {

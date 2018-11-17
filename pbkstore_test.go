@@ -21,17 +21,25 @@ import (
 	"testing"
 
 	"github.com/DE-labtory/swim"
+	"github.com/DE-labtory/swim/pb"
 	"github.com/stretchr/testify/assert"
 )
 
+func NewPiggyBack(id string) pb.PiggyBack {
+	return pb.PiggyBack{
+		Id:          id,
+		Incarnation: 1,
+		Address:     "123",
+	}
+}
 func TestPiggyBackPriorityStore_Push(t *testing.T) {
 
 	//given
 	pbkStore := swim.NewPriorityPBStore(3)
 
 	//when
-	pbkStore.Push([]byte("hello world"))
-	pbkStore.Push([]byte("hello world1"))
+	pbkStore.Push(NewPiggyBack("1"))
+	pbkStore.Push(NewPiggyBack("2"))
 
 	//then
 	assert.Equal(t, pbkStore.Len(), 2)
@@ -41,7 +49,7 @@ func TestPiggyBackPriorityStore_Get(t *testing.T) {
 
 	// given
 	pbkStore := swim.NewPriorityPBStore(3)
-	pbkStore.Push([]byte("hello world"))
+	pbkStore.Push(NewPiggyBack("1"))
 
 	// when
 	// When get function called, pbkstore internally increases the priority.
@@ -50,7 +58,7 @@ func TestPiggyBackPriorityStore_Get(t *testing.T) {
 	assert.Nil(t, err)
 
 	// then
-	assert.Equal(t, pbkData, []byte("hello world"))
+	assert.Equal(t, pbkData, NewPiggyBack("1"))
 	assert.Equal(t, pbkStore.Len(), 1)
 
 	// when
@@ -59,7 +67,7 @@ func TestPiggyBackPriorityStore_Get(t *testing.T) {
 	assert.Nil(t, err)
 
 	// then
-	assert.Equal(t, pbkData_2, []byte("hello world"))
+	assert.Equal(t, pbkData_2, NewPiggyBack("1"))
 	assert.Equal(t, pbkStore.Len(), 1)
 
 	// when
@@ -68,7 +76,7 @@ func TestPiggyBackPriorityStore_Get(t *testing.T) {
 	assert.Nil(t, err)
 
 	// then
-	assert.Equal(t, pbkData_3, []byte("hello world"))
+	assert.Equal(t, pbkData_3, NewPiggyBack("1"))
 
 	// This time data was queried three times, so it was deleted
 	assert.Equal(t, pbkStore.Len(), 0)
@@ -83,7 +91,7 @@ func TestPiggyBackPriorityStore_Len(t *testing.T) {
 	// given
 	pbkStore := swim.NewPriorityPBStore(3)
 	for i := 0; i < 3; i++ {
-		pbkStore.Push([]byte(strconv.Itoa(i)))
+		pbkStore.Push(NewPiggyBack(strconv.Itoa(i)))
 	}
 
 	// when && then

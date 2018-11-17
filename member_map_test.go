@@ -30,12 +30,11 @@ func TestMemberMap_Alive(t *testing.T) {
 
 	// when
 	// Add new member
-	isChanged, err := m.Alive(swim.Member{
-		ID: swim.MemberID{
-			ID: "1",
+	isChanged, err := m.Alive(swim.AliveMessage{
+		MemberMessage: swim.MemberMessage{
+			ID:          "1",
+			Incarnation: 1,
 		},
-		Incarnation: 1,
-		Status:      swim.Alive,
 	})
 
 	// then
@@ -44,12 +43,11 @@ func TestMemberMap_Alive(t *testing.T) {
 
 	// when
 	// Add existing member
-	isChanged, err = m.Alive(swim.Member{
-		ID: swim.MemberID{
-			ID: "1",
+	isChanged, err = m.Alive(swim.AliveMessage{
+		MemberMessage: swim.MemberMessage{
+			ID:          "1",
+			Incarnation: 2,
 		},
-		Incarnation: 2,
-		Status:      swim.Alive,
 	})
 
 	// then
@@ -57,67 +55,25 @@ func TestMemberMap_Alive(t *testing.T) {
 	assert.Equal(t, true, isChanged)
 }
 
-func TestMemberMap_GetMembers(t *testing.T) {
-
-	// given
-	m := swim.NewMemberMap()
-	m.Alive(swim.Member{
-		ID: swim.MemberID{
-			ID: "1",
-		},
-	})
-	m.Alive(swim.Member{
-		ID: swim.MemberID{
-			ID: "2",
-		},
-	})
-	m.Alive(swim.Member{
-		ID: swim.MemberID{
-			ID: "3",
-		},
-	})
-
-	// when
-	members := m.GetMembers()
-
-	// then
-	assert.Equal(t, len(m.GetMembers()), 3)
-	assert.Contains(t, members, swim.Member{
-		ID: swim.MemberID{
-			ID: "1",
-		},
-	})
-	assert.Contains(t, members, swim.Member{
-		ID: swim.MemberID{
-			ID: "2",
-		},
-	})
-	assert.Contains(t, members, swim.Member{
-		ID: swim.MemberID{
-			ID: "3",
-		},
-	})
-}
-
 //func TestMemberMap_SelectKRandomMember(t *testing.T) {
 //
 //	// given
 //	m := swim.NewMemberMap()
-//	_, err := m.Alive(swim.Member{
+//	_, err := m.Alive(swim.AliveObject{
 //		ID: swim.MemberID{
 //			ID: "1",
 //		},
 //	})
 //	assert.NoError(t, err)
 //
-//	m.Alive(swim.Member{
+//	m.Alive(swim.AliveObject{
 //		ID: swim.MemberID{
 //			ID: "2",
 //		},
 //	})
 //	assert.NoError(t, err)
 //
-//	m.Alive(swim.Member{
+//	m.Alive(swim.AliveObject{
 //		ID: swim.MemberID{
 //			ID: "3",
 //		},
@@ -144,48 +100,9 @@ func TestMemberMap_GetMembers(t *testing.T) {
 //	}
 //}
 
-func TestMemberMap_Reset(t *testing.T) {
-
-	// given
-	m := swim.NewMemberMap()
-	m.Alive(swim.Member{
-		ID: swim.MemberID{
-			ID: "1",
-		},
-	})
-	m.Alive(swim.Member{
-		ID: swim.MemberID{
-			ID: "2",
-		},
-	})
-	m.Alive(swim.Member{
-		ID: swim.MemberID{
-			ID: "3",
-		},
-		Status: swim.Dead,
-	})
-
-	// when
-	m.Reset()
-
-	// then
-	members := m.GetMembers()
-	assert.Equal(t, len(m.GetMembers()), 2)
-	assert.Contains(t, members, swim.Member{
-		ID: swim.MemberID{
-			ID: "1",
-		},
-	})
-	assert.Contains(t, members, swim.Member{
-		ID: swim.MemberID{
-			ID: "2",
-		},
-	})
-}
-
-func checkExist(members []swim.Member, memberID swim.MemberID) bool {
+func checkExist(members []swim.AliveMessage, memberID swim.MemberID) bool {
 	for _, members := range members {
-		if members.ID == memberID {
+		if members.ID == memberID.ID {
 			return true
 		}
 	}

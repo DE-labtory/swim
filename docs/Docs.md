@@ -186,7 +186,41 @@ ProbeInterval = BaseInterval * (NSA+1)
 
 **Nack for more information**
 
-nack은 SWIM 프로토콜에 해당하지는 않는다. 그렇지만 Lifeguard가 자기자신에게 돌아오지 않는 메세지를 고려하기 때문에 nack이 유용하게 사용될 수 있다. 예를 들어보면 네트워크 내에 A, B, C, D가 있는데 A가 D에게 메세지를 보낸다고 하자. 이 때 아무런 응답이 다시 A에게 돌아오지 않을 때 nack을 사용하지 않는다면 B, C, D 중에 누가 문제인지 알 수 없다. 반면에 nack을 사용한다고 했을 때 nack이 B, C로 부터 돌아오면 A, B, C 끼리는 통신이 잘 되는 것을 확인할 수 있고 문제의 원인은 D에 있을 가능성이 높아진다. 또 nack이 B, C 로부터 잘 돌아오지 않는다면 A가 isolated 되있을 가능성이 높다.
+nack은 SWIM 프로토콜에 해당하지는 않는다. 그렇지만 Lifeguard가 자기자신에게 돌아오지 않는 메세지를 고려하기 때문에 nack이 유용하게 사용될 수 있다.
+
+<p align="center">
+<img src="../images/[nack]NACK-EXAMPLE-01.png" width="400px" height="300px">
+</p>
+
+예를 들어보면 네트워크 내에 A, B, C, D가 있는데 A가 B, C를 통해서 D에게 메세지를 보낸다고 하자.
+
+
+<p align="center">
+<img src="../images/[nack]NACK-EXAMPLE-02.png" width="400px" height="300px">
+</p>
+
+
+
+<p align="center">
+<img src="../images/[nack]NACK-EXAMPLE-03.png" width="400px" height="300px">
+</p>
+
+A는 B, C에게 `REQ-PING(D)`를 통해 D에게 ping을 보낼 것을 요청한다. 그래서 B, C가 `REQ-PING(D)`를 받으면 D에게 ping을 보내게된다. 이 때 A 입장에서 아무런 응답이 다시 A에게 돌아오지 않을 때 **nack을 사용하지 않는다면 A, B, C, D 중에 누가 문제인지 알 수 없다.** 왜냐하면 D가 문제여서 B, C에게 ack가 돌아오지않았고 그래서 B, C가 A에게 ack을 보내지 못한 것일 수도 있고 또 다른 가능성은 A 스스로에게 문제가 있어서 B, C로부터 ack을 받지 못한 것일 수도 있다. 
+
+
+<p align="center">
+<img src="../images/[nack]NACK-EXAMPLE-04.png" width="400px" height="300px">
+</p>
+
+위와 같은 상황처럼 D가 ack을 보내게되면 B, C는 단순히 ack을 보내면 된다.
+
+<p align="center">
+<img src="../images/[nack]NACK-EXAMPLE-05.png" width="400px" height="300px">
+</p>
+
+nack이 유용한 경우는 위와 같은 상황이다. 첫 번째로 D가 문제여서 B, C에게 ack가 돌아오지않았다면 B, C는 D로부터 ack을 받지 못했다는 의미로 A에게 nack ping을 보낼 수 있다. 반면에 A가 B, C로부터 ack을 받지 못한 경우에는 A입장에서는 B, C로부터 아무런 ping을 받지 못했기 때문에 자신이 네트워크로부터 고립되어있을 가능성이 높아진다. 왜냐하면 실제로 `REQ-PING(X)`을 보낼 때는 충분히 큰 수의 k명의 멤버들을 뽑아서 보내게되는데 이들 중 아무에게도 ack가 오지 않았다면, k 명의 멤버들에게 문제가 있다기보다는 자기 자신이 문제가 있을 가능성이 훨씬 높다.
+
+[hashicorp memberlist](http://github.com/hashicorp/memberlist)에서 **probe과정에서 nack과 NSA counter를 구현한 방법은 다음과 같다.** k명을 뽑아서 indirect-ping을 날릴 때 `expectedNacks=k`를 두고 실제로 k명에게서 nack을 받은 갯수 차이만큼 자신의 NSA counter를 올리게된다. 예를 들어 k명을 뽑아서 indirect-ping request를 보냈지만 그중에서 3명에게서만 nack이 왔다면 `k-3`만큼 자신의 NSA counter를 올린다. 그리고 k명으로부터 ack을 하나라도 받지못하면 indirect-ping 타겟 멤버는  `suspectNode` 과정으로 들어간다.
 
 probe timeout의 80%까지 ack를 받지 못할경우, 자신에게 indirect ping을 보낸 노드(A)에게 nack 메세지를 보낸다. 만약, A에게 nack을 보내고 난 후 ack 메세지를 받았을 경우 다시 A에게 ack 메세지를 보낸다. 이것 또한 indirect probe가 성공되었다고 간주한다.
 

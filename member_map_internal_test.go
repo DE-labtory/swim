@@ -401,3 +401,51 @@ func TestMemberMap_Reset_Internal_Test(t *testing.T) {
 		Status: Alive,
 	})
 }
+
+func TestMemberMap_SelectKRandomMember(t *testing.T) {
+
+	// given
+	m := NewMemberMap()
+
+	m.members[MemberID{ID: "1"}] = &Member{
+		ID: MemberID{
+			ID: "1",
+		},
+		Incarnation: 1,
+		Status:      Alive,
+	}
+	m.members[MemberID{ID: "2"}] = &Member{
+		ID: MemberID{
+			ID: "2",
+		},
+		Incarnation: 1,
+		Status:      Alive,
+	}
+	m.members[MemberID{ID: "3"}] = &Member{
+		ID: MemberID{
+			ID: "3",
+		},
+		Incarnation: 1,
+		Status:      Alive,
+	}
+
+	// case 1: randomly select all members
+	members := m.GetMembers()
+	rMembers := m.SelectKRandomMemberID(3)
+	for i := 0; i < len(members); i++ {
+
+		assert.True(t, checkExist(rMembers, members[i]))
+	}
+
+	// case 2: when k is larger then length of members
+	assert.Equal(t, len(m.SelectKRandomMemberID(5)), 3)
+}
+
+func checkExist(members []Member, m Member) bool {
+	for _, member := range members {
+		if member.ID == m.ID {
+			return true
+		}
+	}
+	return false
+}

@@ -18,6 +18,7 @@ package swim
 
 import (
 	"errors"
+	"math/rand"
 	"net"
 	"strconv"
 	"sync"
@@ -103,24 +104,47 @@ func (m *Member) GetID() MemberID {
 type MemberMap struct {
 	lock    sync.RWMutex
 	members map[MemberID]*Member
-
-	// This is for selecting k random member based on round-robin
-	waitingMembers []Member
 }
 
 func NewMemberMap() *MemberMap {
 	return &MemberMap{
-		members:        make(map[MemberID]*Member),
-		waitingMembers: make([]Member, 0),
-		lock:           sync.RWMutex{},
+		members: make(map[MemberID]*Member),
+		lock:    sync.RWMutex{},
 	}
 }
 
-// Select K random memberID from waitingMembers(length of returning member can be lower than k).
-// ** WaitingMembers are shuffled every time when members are updated **, so just returning first K item in waitingMembers is same as
-// selecting k random membersID.
+// Select K random member (length of returning member can be lower than k).
 func (m *MemberMap) SelectKRandomMemberID(k int) []Member {
-	return nil
+
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	// Filter non-alive member
+	members := make([]Member, 0)
+	for _, member := range m.members {
+		if member.Status == Alive {
+			members = append(members, *member)
+		}
+	}
+
+	selectedMembers := make([]Member, 0)
+
+	// Select K random members
+	s := rand.NewSource(time.Now().Unix())
+	r := rand.New(s) // initialize local pseudorandom generator
+	for i := 0; i < k; i++ {
+
+		// When K is larger than members
+		if len(members) == 0 {
+			break
+		}
+
+		index := r.Intn(len(members))
+		selectedMembers = append(selectedMembers, members[index])
+		members = append(members[:index], members[index+1:]...)
+	}
+
+	return selectedMembers
 }
 
 func (m *MemberMap) GetMembers() []Member {
@@ -128,8 +152,8 @@ func (m *MemberMap) GetMembers() []Member {
 	defer m.lock.Unlock()
 
 	members := make([]Member, 0)
-	for _, v := range m.members {
-		members = append(members, *v)
+	for _, member := range m.members {
+		members = append(members, *member)
 	}
 
 	return members
@@ -170,7 +194,9 @@ func override(newMem Member, existingMem Member) Member {
 }
 
 // Process Alive message
+//
 // Return 2 parameter bool, error bool means Changed in MemberList
+//
 // 1. If aliveMessage Id is empty return false and ErrEmptyMemberID
 // 2. if aliveMessage Id is not in MemberList then Create Member and Add MemberList
 // 3. if aliveMessage Id is in MemberList and existingMember's Incarnation is bigger than AliveMessage's Incarnation Than return false, ErrIncarnation
@@ -213,12 +239,6 @@ func createMember(message MemberMessage, status Status) *Member {
 		LastStatusChange: time.Now(),
 		Incarnation:      message.Incarnation,
 	}
-}
-
-// Remove member and update waitingMembers
-// todo
-func (m *MemberMap) RemoveMember(member Member) error {
-	return nil
 }
 
 // Delete all dead node,

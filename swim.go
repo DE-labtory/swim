@@ -17,9 +17,10 @@
 package swim
 
 import (
+	"time"
+
 	"github.com/it-chain/iLogger"
 	"github.com/rs/xid"
-	"time"
 
 	"github.com/DE-labtory/swim/pb"
 )
@@ -202,7 +203,6 @@ func (s *SWIM) handle(msg pb.Message) {
 
 // handle piggyback related to member status
 func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
-
 	// Check if piggyback message changes memberMap.
 	hasChanged := false
 
@@ -232,13 +232,19 @@ func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	seq := msg.Seq
 
+	// retrieve piggyback data from pbkStore
+	pbk, err := s.pbkStore.Get()
+	if err != nil {
+		iLogger.Error(nil, err.Error())
+	}
+
 	// address of message source member
-	src := msg.Address
+	srcAddr := msg.Address
 
 	// address of indirect-ping's target
 	targetAddr := msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target
 
-	ping := createPingMessage(nil)
+	ping := createPingMessage(&pbk)
 
 	// first send the ping to target member, if target member could not send-back
 	// ack message for whatever reason send nack message to source member,
@@ -246,15 +252,15 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	// to source member
 
 	if _, err := s.messageEndpoint.SyncSend(targetAddr, ping, DefaultSendTimeout); err != nil {
-		nack := createNackMessage(seq, nil)
-		if err := s.messageEndpoint.Send(src, nack); err != nil {
+		nack := createNackMessage(seq, &pbk)
+		if err := s.messageEndpoint.Send(srcAddr, nack); err != nil {
 			iLogger.Error(nil, err.Error())
 		}
 		return
 	}
 
-	ack := createAckMessage(seq, nil)
-	if err := s.messageEndpoint.Send(src, ack); err != nil {
+	ack := createAckMessage(seq, &pbk)
+	if err := s.messageEndpoint.Send(srcAddr, ack); err != nil {
 		iLogger.Error(nil, err.Error())
 	}
 }

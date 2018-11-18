@@ -5,16 +5,17 @@ message Message {
 
     string seq = 1;
 
-    //
+    // address of source member who sent this message
     string address = 2;
 
     oneof payload {
         Ping ping = 3;
         Ack ack = 4;
-        IndirectPing indirect_ping = 5;
+        Nack nack = 5;
+        IndirectPing indirect_ping = 6;
     }
 
-    PiggyBack piggyBack = 6;
+    PiggyBack piggyBack = 7;
 }
 
 message Ping {
@@ -25,7 +26,12 @@ message Ack {
     string payload = 2;
 }
 
+message Nack {
+
+}
+
 message IndirectPing{
+    // indirect-ping's target address
     string target = 2;
     bool nack = 3;
 }

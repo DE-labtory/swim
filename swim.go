@@ -194,7 +194,7 @@ func (s *SWIM) handle(msg pb.Message) {
 	case *pb.Message_Ack:
 		// handle ack
 	case *pb.Message_IndirectPing:
-		// handle indirect ping
+		s.handleIndirectPing(msg)
 	default:
 
 	}
@@ -225,24 +225,66 @@ func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 	}
 }
 
+// handleIndirectPing receives IndirectPing message, so send the ping message
+// to target member, if successfully receives ACK message then send back again
+// ACK message to member who sent IndirectPing message to me.
+// If ping was not successful then send back NACK message
 func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	seq := msg.Seq
-	id := msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target
-	member := s.memberMap.members[MemberID{ID: id}]
 
-	ping := pb.Message{
+	// address of message source member
+	src := msg.Address
+
+	// address of indirect-ping's target
+	targetAddr := msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target
+
+	ping := createPingMessage(nil)
+
+	// first send the ping to target member, if target member could not send-back
+	// ack message for whatever reason send nack message to source member,
+	// if successfully received ack message from target, then send back ack message
+	// to source member
+
+	if _, err := s.messageEndpoint.SyncSend(targetAddr, ping, DefaultSendTimeout); err != nil {
+		nack := createNackMessage(seq, nil)
+		if err := s.messageEndpoint.Send(src, nack); err != nil {
+			iLogger.Error(nil, err.Error())
+		}
+		return
+	}
+
+	ack := createAckMessage(seq, nil)
+	if err := s.messageEndpoint.Send(src, ack); err != nil {
+		iLogger.Error(nil, err.Error())
+	}
+}
+
+func createPingMessage(pbk *pb.PiggyBack) pb.Message {
+	return pb.Message{
 		Seq: xid.New().String(),
 		Payload: &pb.Message_Ping{
 			Ping: &pb.Ping{},
 		},
+		PiggyBack: pbk,
 	}
-
-	_, err := s.messageEndpoint.SyncSend(member.Addr.String(), ping, DefaultSendTimeout)
-	if err != nil {
-		iLogger.Error(nil, err.Error())
-		return
-	}
-
-
 }
 
+func createNackMessage(seq string, pbk *pb.PiggyBack) pb.Message {
+	return pb.Message{
+		Seq: seq,
+		Payload: &pb.Message_Nack{
+			Nack: &pb.Nack{},
+		},
+		PiggyBack: pbk,
+	}
+}
+
+func createAckMessage(seq string, pbk *pb.PiggyBack) pb.Message {
+	return pb.Message{
+		Seq: seq,
+		Payload: &pb.Message_Ack{
+			Ack: &pb.Ack{},
+		},
+		PiggyBack: pbk,
+	}
+}

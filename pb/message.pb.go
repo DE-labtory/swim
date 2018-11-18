@@ -3,12 +3,9 @@
 
 package pb
 
-import (
-	fmt "fmt"
-	math "math"
-
-	proto "github.com/golang/protobuf/proto"
-)
+import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -36,7 +33,6 @@ var PiggyBack_Type_name = map[int32]string{
 	1: "Suspect",
 	2: "Confirm",
 }
-
 var PiggyBack_Type_value = map[string]int32{
 	"Alive":   0,
 	"Suspect": 1,
@@ -46,21 +42,21 @@ var PiggyBack_Type_value = map[string]int32{
 func (x PiggyBack_Type) String() string {
 	return proto.EnumName(PiggyBack_Type_name, int32(x))
 }
-
 func (PiggyBack_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_33c57e4bae7b9afd, []int{4, 0}
+	return fileDescriptor_message_67089b2dab3c942c, []int{5, 0}
 }
 
 type Message struct {
 	Seq string `protobuf:"bytes,1,opt,name=seq,proto3" json:"seq,omitempty"`
-	//
+	// address of source member who sent this message
 	Address string `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
 	// Types that are valid to be assigned to Payload:
 	//	*Message_Ping
 	//	*Message_Ack
+	//	*Message_Nack
 	//	*Message_IndirectPing
 	Payload              isMessage_Payload `protobuf_oneof:"payload"`
-	PiggyBack            *PiggyBack        `protobuf:"bytes,6,opt,name=piggyBack,proto3" json:"piggyBack,omitempty"`
+	PiggyBack            *PiggyBack        `protobuf:"bytes,7,opt,name=piggyBack,proto3" json:"piggyBack,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`
 	XXX_sizecache        int32             `json:"-"`
@@ -70,17 +66,16 @@ func (m *Message) Reset()         { *m = Message{} }
 func (m *Message) String() string { return proto.CompactTextString(m) }
 func (*Message) ProtoMessage()    {}
 func (*Message) Descriptor() ([]byte, []int) {
-	return fileDescriptor_33c57e4bae7b9afd, []int{0}
+	return fileDescriptor_message_67089b2dab3c942c, []int{0}
 }
-
 func (m *Message) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Message.Unmarshal(m, b)
 }
 func (m *Message) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Message.Marshal(b, m, deterministic)
 }
-func (m *Message) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Message.Merge(m, src)
+func (dst *Message) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Message.Merge(dst, src)
 }
 func (m *Message) XXX_Size() int {
 	return xxx_messageInfo_Message.Size(m)
@@ -117,13 +112,19 @@ type Message_Ack struct {
 	Ack *Ack `protobuf:"bytes,4,opt,name=ack,proto3,oneof"`
 }
 
+type Message_Nack struct {
+	Nack *Nack `protobuf:"bytes,5,opt,name=nack,proto3,oneof"`
+}
+
 type Message_IndirectPing struct {
-	IndirectPing *IndirectPing `protobuf:"bytes,5,opt,name=indirect_ping,json=indirectPing,proto3,oneof"`
+	IndirectPing *IndirectPing `protobuf:"bytes,6,opt,name=indirect_ping,json=indirectPing,proto3,oneof"`
 }
 
 func (*Message_Ping) isMessage_Payload() {}
 
 func (*Message_Ack) isMessage_Payload() {}
+
+func (*Message_Nack) isMessage_Payload() {}
 
 func (*Message_IndirectPing) isMessage_Payload() {}
 
@@ -148,6 +149,13 @@ func (m *Message) GetAck() *Ack {
 	return nil
 }
 
+func (m *Message) GetNack() *Nack {
+	if x, ok := m.GetPayload().(*Message_Nack); ok {
+		return x.Nack
+	}
+	return nil
+}
+
 func (m *Message) GetIndirectPing() *IndirectPing {
 	if x, ok := m.GetPayload().(*Message_IndirectPing); ok {
 		return x.IndirectPing
@@ -167,6 +175,7 @@ func (*Message) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error
 	return _Message_OneofMarshaler, _Message_OneofUnmarshaler, _Message_OneofSizer, []interface{}{
 		(*Message_Ping)(nil),
 		(*Message_Ack)(nil),
+		(*Message_Nack)(nil),
 		(*Message_IndirectPing)(nil),
 	}
 }
@@ -185,8 +194,13 @@ func _Message_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
 		if err := b.EncodeMessage(x.Ack); err != nil {
 			return err
 		}
-	case *Message_IndirectPing:
+	case *Message_Nack:
 		b.EncodeVarint(5<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Nack); err != nil {
+			return err
+		}
+	case *Message_IndirectPing:
+		b.EncodeVarint(6<<3 | proto.WireBytes)
 		if err := b.EncodeMessage(x.IndirectPing); err != nil {
 			return err
 		}
@@ -216,7 +230,15 @@ func _Message_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer
 		err := b.DecodeMessage(msg)
 		m.Payload = &Message_Ack{msg}
 		return true, err
-	case 5: // payload.indirect_ping
+	case 5: // payload.nack
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(Nack)
+		err := b.DecodeMessage(msg)
+		m.Payload = &Message_Nack{msg}
+		return true, err
+	case 6: // payload.indirect_ping
 		if wire != proto.WireBytes {
 			return true, proto.ErrInternalBadWireType
 		}
@@ -243,6 +265,11 @@ func _Message_OneofSizer(msg proto.Message) (n int) {
 		n += 1 // tag and wire
 		n += proto.SizeVarint(uint64(s))
 		n += s
+	case *Message_Nack:
+		s := proto.Size(x.Nack)
+		n += 1 // tag and wire
+		n += proto.SizeVarint(uint64(s))
+		n += s
 	case *Message_IndirectPing:
 		s := proto.Size(x.IndirectPing)
 		n += 1 // tag and wire
@@ -265,17 +292,16 @@ func (m *Ping) Reset()         { *m = Ping{} }
 func (m *Ping) String() string { return proto.CompactTextString(m) }
 func (*Ping) ProtoMessage()    {}
 func (*Ping) Descriptor() ([]byte, []int) {
-	return fileDescriptor_33c57e4bae7b9afd, []int{1}
+	return fileDescriptor_message_67089b2dab3c942c, []int{1}
 }
-
 func (m *Ping) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Ping.Unmarshal(m, b)
 }
 func (m *Ping) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Ping.Marshal(b, m, deterministic)
 }
-func (m *Ping) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Ping.Merge(m, src)
+func (dst *Ping) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Ping.Merge(dst, src)
 }
 func (m *Ping) XXX_Size() int {
 	return xxx_messageInfo_Ping.Size(m)
@@ -297,17 +323,16 @@ func (m *Ack) Reset()         { *m = Ack{} }
 func (m *Ack) String() string { return proto.CompactTextString(m) }
 func (*Ack) ProtoMessage()    {}
 func (*Ack) Descriptor() ([]byte, []int) {
-	return fileDescriptor_33c57e4bae7b9afd, []int{2}
+	return fileDescriptor_message_67089b2dab3c942c, []int{2}
 }
-
 func (m *Ack) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_Ack.Unmarshal(m, b)
 }
 func (m *Ack) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_Ack.Marshal(b, m, deterministic)
 }
-func (m *Ack) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Ack.Merge(m, src)
+func (dst *Ack) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Ack.Merge(dst, src)
 }
 func (m *Ack) XXX_Size() int {
 	return xxx_messageInfo_Ack.Size(m)
@@ -325,7 +350,38 @@ func (m *Ack) GetPayload() string {
 	return ""
 }
 
+type Nack struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *Nack) Reset()         { *m = Nack{} }
+func (m *Nack) String() string { return proto.CompactTextString(m) }
+func (*Nack) ProtoMessage()    {}
+func (*Nack) Descriptor() ([]byte, []int) {
+	return fileDescriptor_message_67089b2dab3c942c, []int{3}
+}
+func (m *Nack) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_Nack.Unmarshal(m, b)
+}
+func (m *Nack) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_Nack.Marshal(b, m, deterministic)
+}
+func (dst *Nack) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Nack.Merge(dst, src)
+}
+func (m *Nack) XXX_Size() int {
+	return xxx_messageInfo_Nack.Size(m)
+}
+func (m *Nack) XXX_DiscardUnknown() {
+	xxx_messageInfo_Nack.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Nack proto.InternalMessageInfo
+
 type IndirectPing struct {
+	// indirect-ping's target address
 	Target               string   `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
 	Nack                 bool     `protobuf:"varint,3,opt,name=nack,proto3" json:"nack,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -337,17 +393,16 @@ func (m *IndirectPing) Reset()         { *m = IndirectPing{} }
 func (m *IndirectPing) String() string { return proto.CompactTextString(m) }
 func (*IndirectPing) ProtoMessage()    {}
 func (*IndirectPing) Descriptor() ([]byte, []int) {
-	return fileDescriptor_33c57e4bae7b9afd, []int{3}
+	return fileDescriptor_message_67089b2dab3c942c, []int{4}
 }
-
 func (m *IndirectPing) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_IndirectPing.Unmarshal(m, b)
 }
 func (m *IndirectPing) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_IndirectPing.Marshal(b, m, deterministic)
 }
-func (m *IndirectPing) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_IndirectPing.Merge(m, src)
+func (dst *IndirectPing) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_IndirectPing.Merge(dst, src)
 }
 func (m *IndirectPing) XXX_Size() int {
 	return xxx_messageInfo_IndirectPing.Size(m)
@@ -386,17 +441,16 @@ func (m *PiggyBack) Reset()         { *m = PiggyBack{} }
 func (m *PiggyBack) String() string { return proto.CompactTextString(m) }
 func (*PiggyBack) ProtoMessage()    {}
 func (*PiggyBack) Descriptor() ([]byte, []int) {
-	return fileDescriptor_33c57e4bae7b9afd, []int{4}
+	return fileDescriptor_message_67089b2dab3c942c, []int{5}
 }
-
 func (m *PiggyBack) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PiggyBack.Unmarshal(m, b)
 }
 func (m *PiggyBack) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_PiggyBack.Marshal(b, m, deterministic)
 }
-func (m *PiggyBack) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PiggyBack.Merge(m, src)
+func (dst *PiggyBack) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_PiggyBack.Merge(dst, src)
 }
 func (m *PiggyBack) XXX_Size() int {
 	return xxx_messageInfo_PiggyBack.Size(m)
@@ -436,38 +490,39 @@ func (m *PiggyBack) GetAddress() string {
 }
 
 func init() {
-	proto.RegisterEnum("pb.PiggyBack_Type", PiggyBack_Type_name, PiggyBack_Type_value)
 	proto.RegisterType((*Message)(nil), "pb.Message")
 	proto.RegisterType((*Ping)(nil), "pb.Ping")
 	proto.RegisterType((*Ack)(nil), "pb.Ack")
+	proto.RegisterType((*Nack)(nil), "pb.Nack")
 	proto.RegisterType((*IndirectPing)(nil), "pb.IndirectPing")
 	proto.RegisterType((*PiggyBack)(nil), "pb.PiggyBack")
+	proto.RegisterEnum("pb.PiggyBack_Type", PiggyBack_Type_name, PiggyBack_Type_value)
 }
 
-func init() { proto.RegisterFile("message.proto", fileDescriptor_33c57e4bae7b9afd) }
+func init() { proto.RegisterFile("message.proto", fileDescriptor_message_67089b2dab3c942c) }
 
-var fileDescriptor_33c57e4bae7b9afd = []byte{
-	// 341 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x54, 0x52, 0xcd, 0x6a, 0xab, 0x40,
-	0x14, 0x8e, 0x3a, 0xd1, 0x78, 0x12, 0x83, 0x9c, 0xc5, 0x45, 0xb8, 0x70, 0x6f, 0x70, 0x51, 0x02,
-	0x01, 0x17, 0xe9, 0xa2, 0xd0, 0x5d, 0xd2, 0x4d, 0xba, 0x28, 0x94, 0x69, 0xf7, 0x65, 0xa2, 0x53,
-	0x19, 0x92, 0x8c, 0x53, 0x9d, 0x16, 0x7c, 0xa7, 0xbe, 0x55, 0x5f, 0xa4, 0xcc, 0x44, 0x5b, 0xb3,
-	0x9b, 0xef, 0x67, 0xbe, 0xf9, 0x8e, 0x47, 0x88, 0x4e, 0xbc, 0x69, 0x58, 0xc9, 0x33, 0x55, 0x57,
-	0xba, 0x42, 0x57, 0xed, 0xd3, 0x2f, 0x07, 0x82, 0x87, 0x33, 0x8b, 0x31, 0x78, 0x0d, 0x7f, 0x4b,
-	0x9c, 0x85, 0xb3, 0x0c, 0xa9, 0x39, 0x62, 0x02, 0x01, 0x2b, 0x8a, 0x9a, 0x37, 0x4d, 0xe2, 0x5a,
-	0xb6, 0x87, 0xf8, 0x0f, 0x88, 0x12, 0xb2, 0x4c, 0xbc, 0x85, 0xb3, 0x9c, 0xae, 0x27, 0x99, 0xda,
-	0x67, 0x8f, 0x42, 0x96, 0xbb, 0x11, 0xb5, 0x3c, 0xfe, 0x05, 0x8f, 0xe5, 0x87, 0x84, 0x58, 0x39,
-	0x30, 0xf2, 0x26, 0x3f, 0xec, 0x46, 0xd4, 0xb0, 0x78, 0x03, 0x91, 0x90, 0x85, 0xa8, 0x79, 0xae,
-	0x5f, 0x6c, 0xca, 0xd8, 0xda, 0x62, 0x63, 0xbb, 0xef, 0x84, 0x2e, 0x6d, 0x26, 0x06, 0x18, 0x57,
-	0x10, 0x2a, 0x51, 0x96, 0xed, 0xd6, 0x64, 0xfb, 0xf6, 0x52, 0x74, 0x7e, 0xba, 0x23, 0xe9, 0xaf,
-	0xbe, 0x0d, 0x21, 0x50, 0xac, 0x3d, 0x56, 0xac, 0x48, 0x7d, 0x20, 0xe6, 0x7e, 0xfa, 0x1f, 0xbc,
-	0x4d, 0x7e, 0x30, 0x63, 0x75, 0x4a, 0x3f, 0x56, 0x6f, 0xbc, 0x85, 0xd9, 0xb0, 0x00, 0xfe, 0x01,
-	0x5f, 0xb3, 0xba, 0xe4, 0xba, 0x33, 0x76, 0x08, 0x11, 0x88, 0x34, 0x1d, 0xcc, 0xf8, 0x13, 0x6a,
-	0xcf, 0xe9, 0xa7, 0x03, 0xe1, 0x4f, 0x11, 0xbc, 0x02, 0xa2, 0x5b, 0xc5, 0xed, 0xd7, 0x9c, 0xaf,
-	0xf1, 0xa2, 0x65, 0xf6, 0xdc, 0x2a, 0x4e, 0xad, 0x8e, 0x73, 0x70, 0x45, 0x5f, 0xc3, 0x15, 0x05,
-	0x2e, 0x60, 0x2a, 0x64, 0xce, 0x6a, 0xc9, 0xb4, 0xa8, 0xa4, 0x7d, 0x20, 0xa2, 0x43, 0x6a, 0xb8,
-	0x14, 0x72, 0xb1, 0x94, 0x74, 0x05, 0xc4, 0x24, 0x63, 0x08, 0xe3, 0xcd, 0x51, 0x7c, 0xf0, 0x78,
-	0x84, 0x53, 0x08, 0x9e, 0xde, 0x1b, 0xc5, 0x73, 0x1d, 0x3b, 0x06, 0xdc, 0x55, 0xf2, 0x55, 0xd4,
-	0xa7, 0xd8, 0xdd, 0xfb, 0xf6, 0x27, 0xb8, 0xfe, 0x0e, 0x00, 0x00, 0xff, 0xff, 0x0e, 0x76, 0x5e,
-	0x6e, 0x15, 0x02, 0x00, 0x00,
+var fileDescriptor_message_67089b2dab3c942c = []byte{
+	// 352 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x54, 0x92, 0x4f, 0x4b, 0xc3, 0x40,
+	0x10, 0xc5, 0x9b, 0x3f, 0x4d, 0x9a, 0x69, 0x53, 0xc2, 0x1c, 0x24, 0x20, 0x68, 0xc9, 0x41, 0x0a,
+	0x85, 0x1c, 0xea, 0x41, 0xf0, 0xd6, 0x7a, 0xa9, 0x07, 0x45, 0xa2, 0x77, 0xd9, 0x26, 0x6b, 0x58,
+	0xda, 0x6e, 0xd6, 0x64, 0x15, 0x72, 0xf6, 0xeb, 0xf8, 0x21, 0x65, 0xb7, 0x1b, 0x9b, 0xde, 0x32,
+	0xef, 0x37, 0x6f, 0xe7, 0xcd, 0x6e, 0x20, 0x3c, 0xd0, 0xa6, 0x21, 0x25, 0x4d, 0x45, 0x5d, 0xc9,
+	0x0a, 0x6d, 0xb1, 0x4d, 0x7e, 0x6c, 0xf0, 0x9f, 0x8e, 0x2a, 0x46, 0xe0, 0x34, 0xf4, 0x33, 0xb6,
+	0x66, 0xd6, 0x3c, 0xc8, 0xd4, 0x27, 0xc6, 0xe0, 0x93, 0xa2, 0xa8, 0x69, 0xd3, 0xc4, 0xb6, 0x56,
+	0xbb, 0x12, 0xaf, 0xc0, 0x15, 0x8c, 0x97, 0xb1, 0x33, 0xb3, 0xe6, 0xe3, 0xe5, 0x28, 0x15, 0xdb,
+	0xf4, 0x85, 0xf1, 0x72, 0x33, 0xc8, 0xb4, 0x8e, 0x97, 0xe0, 0x90, 0x7c, 0x17, 0xbb, 0x1a, 0xfb,
+	0x0a, 0xaf, 0xf2, 0xdd, 0x66, 0x90, 0x29, 0x55, 0x99, 0xb9, 0xa2, 0xc3, 0x93, 0xf9, 0x99, 0x68,
+	0xac, 0x75, 0xbc, 0x83, 0x90, 0xf1, 0x82, 0xd5, 0x34, 0x97, 0xef, 0x7a, 0x8a, 0xa7, 0x1b, 0x23,
+	0xd5, 0xf8, 0x68, 0x80, 0x99, 0x36, 0x61, 0xbd, 0x1a, 0x17, 0x10, 0x08, 0x56, 0x96, 0xed, 0x5a,
+	0x9d, 0xee, 0x6b, 0x53, 0x78, 0x8c, 0x66, 0xc4, 0xec, 0xc4, 0xd7, 0x01, 0xf8, 0x82, 0xb4, 0xfb,
+	0x8a, 0x14, 0x89, 0x07, 0xae, 0xf2, 0x27, 0xd7, 0xe0, 0xac, 0xf2, 0x9d, 0x5a, 0xdb, 0x90, 0x6e,
+	0xed, 0x5e, 0xa3, 0x4a, 0x9a, 0xdc, 0xc3, 0xa4, 0x1f, 0x04, 0x2f, 0xc0, 0x93, 0xa4, 0x2e, 0xa9,
+	0x34, 0x06, 0x53, 0x21, 0x9a, 0x4d, 0xd5, 0x35, 0x8d, 0x8e, 0xdb, 0x25, 0xbf, 0x16, 0x04, 0xff,
+	0x81, 0xf0, 0x06, 0x5c, 0xd9, 0x0a, 0xaa, 0x6f, 0x7d, 0xba, 0xc4, 0xb3, 0xb4, 0xe9, 0x5b, 0x2b,
+	0x68, 0xa6, 0x39, 0x4e, 0xc1, 0x66, 0x5d, 0x1c, 0x9b, 0x15, 0x38, 0x83, 0x31, 0xe3, 0x39, 0xa9,
+	0x39, 0x91, 0xac, 0xe2, 0x7a, 0x40, 0x98, 0xf5, 0xa5, 0xfe, 0xe3, 0xb9, 0x67, 0x8f, 0x97, 0x2c,
+	0xc0, 0x55, 0x27, 0x63, 0x00, 0xc3, 0xd5, 0x9e, 0x7d, 0xd3, 0x68, 0x80, 0x63, 0xf0, 0x5f, 0xbf,
+	0x1a, 0x41, 0x73, 0x19, 0x59, 0xaa, 0x78, 0xa8, 0xf8, 0x07, 0xab, 0x0f, 0x91, 0xbd, 0xf5, 0xf4,
+	0xcf, 0x72, 0xfb, 0x17, 0x00, 0x00, 0xff, 0xff, 0xe7, 0x3d, 0x49, 0xc9, 0x3d, 0x02, 0x00, 0x00,
 }

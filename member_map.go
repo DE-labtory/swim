@@ -82,12 +82,16 @@ type MemberMessage struct {
 	Incarnation uint32
 }
 
+type AliveMessage struct {
+	MemberMessage
+}
+
 // Suspect message struct
 type SuspectMessage struct {
 	MemberMessage
 }
 
-type AliveMessage struct {
+type ConfirmMessage struct {
 	MemberMessage
 }
 
@@ -228,6 +232,42 @@ func (m *MemberMap) Alive(aliveMessage AliveMessage) (bool, error) {
 	existingMem.Incarnation = aliveMessage.Incarnation
 	existingMem.LastStatusChange = time.Now()
 	return true, nil
+}
+
+// Handle Confirm Message
+
+func (m *MemberMap) Confirm(confirmMessage ConfirmMessage) (bool, error) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	// Check whether Member ID in Confirm message is empty or not
+	if confirmMessage.ID == "" {
+		return false, ErrEmptyMemberID
+	}
+
+	// Get the existing member from the member list
+	mID := MemberID{confirmMessage.ID}
+	member, exist := m.members[mID]
+
+	// Check that the member exists
+	if !exist {
+		return false, nil
+	}
+
+	// {Dead Ml, inc=i} overrides
+	// - {Suspect Ml, inc=j}, any j
+	// - {Alive Ml, inc=j}, any j
+	status := member.Status
+	if status == Alive || status == Suspected {
+		member.Status = Dead
+		member.LastStatusChange = time.Now()
+		member.Incarnation = confirmMessage.Incarnation
+		member.Suspicion = nil
+
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func createMember(message MemberMessage, status Status) *Member {

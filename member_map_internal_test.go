@@ -68,6 +68,74 @@ func TestMemberMap_Alive_Internal(t *testing.T) {
 
 }
 
+func TestMemberMap_Confirm_Internal(t *testing.T) {
+	// given
+	m := NewMemberMap()
+
+	// when : alive
+	m.members[MemberID{ID: "1"}] = &Member{
+		ID: MemberID{
+			ID: "1",
+		},
+		Incarnation: 1,
+		Status:      Alive,
+	}
+
+	c, e := m.Confirm(ConfirmMessage{
+		MemberMessage: MemberMessage{
+			ID:          "1",
+			Incarnation: 1,
+		},
+	})
+
+	// then
+	assert.True(t, c)
+	assert.NoError(t, e)
+	assert.Equal(t, m.members[MemberID{"1"}].Status, Dead)
+
+	// when : suspected
+	m.members[MemberID{ID: "2"}] = &Member{
+		ID: MemberID{
+			ID: "2",
+		},
+		Incarnation: 1,
+		Status:      Suspected,
+	}
+
+	c, e = m.Confirm(ConfirmMessage{
+		MemberMessage: MemberMessage{
+			ID:          "2",
+			Incarnation: 2,
+		},
+	})
+
+	// then
+	assert.True(t, c)
+	assert.NoError(t, e)
+	assert.Equal(t, m.members[MemberID{"2"}].Status, Dead)
+
+	// when : dead
+	m.members[MemberID{ID: "3"}] = &Member{
+		ID: MemberID{
+			ID: "3",
+		},
+		Incarnation: 1,
+		Status:      Dead,
+	}
+
+	c, e = m.Confirm(ConfirmMessage{
+		MemberMessage: MemberMessage{
+			ID:          "3",
+			Incarnation: 3,
+		},
+	})
+
+	// then
+	assert.False(t, c)
+	assert.NoError(t, e)
+	assert.Equal(t, m.members[MemberID{"3"}].Status, Dead)
+}
+
 func TestMemberMap_GetMembers_Internal(t *testing.T) {
 
 	// given

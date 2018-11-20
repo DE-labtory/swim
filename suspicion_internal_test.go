@@ -17,10 +17,9 @@
 package swim
 
 import (
+	"sync"
 	"testing"
 	"time"
-
-	"sync"
 
 	"github.com/stretchr/testify/assert"
 )

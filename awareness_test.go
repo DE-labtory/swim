@@ -18,7 +18,6 @@ package swim_test
 
 import (
 	"testing"
-
 	"time"
 
 	"github.com/DE-labtory/swim"

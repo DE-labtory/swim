@@ -6,10 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
-
 	"github.com/DE-labtory/swim/pb"
-
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
 

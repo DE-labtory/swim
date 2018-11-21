@@ -3,7 +3,7 @@ package pb;
 
 message Message {
 
-    string seq = 1;
+    string id = 1;
 
     // address of source member who sent this message
     string address = 2;

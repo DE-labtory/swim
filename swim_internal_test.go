@@ -28,7 +28,7 @@ func TestSWIM_ShutDown(t *testing.T) {
 		T:             4000,
 		AckTimeOut:    1000,
 		MaxlocalCount: 1,
-	},&SuspicionConfig{})
+	}, &SuspicionConfig{})
 
 	m := NewMemberMap(&SuspicionConfig{})
 	m.Alive(AliveMessage{

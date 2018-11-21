@@ -8,4 +8,5 @@ require (
 	github.com/stretchr/testify v1.2.2
 	github.com/urfave/cli v1.20.0
 	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
+	golang.org/x/tools v0.0.0-20181120234846-b5f2cae84da8 // indirect
 )

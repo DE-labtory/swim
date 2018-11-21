@@ -28,7 +28,8 @@ import (
 )
 
 var ErrEmptyMemberID = errors.New("MemberID is empty")
-var ErrMemberUnknownStates = errors.New("unknown status")
+var ErrCreatingSuspicion = errors.New("error occurred while creating suspicion")
+var ErrMemberUnknownState = errors.New("error member is in unknown state")
 
 // Status of members
 type Status int
@@ -179,76 +180,77 @@ func (m *MemberMap) GetMembers() []Member {
 
 // Suspect handle suspectMessage, if this function update member states
 // return true otherwise false
-func (m *MemberMap) Suspect(suspectMessage SuspectMessage) (bool, error) {
+func (m *MemberMap) Suspect(msg SuspectMessage) (bool, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
 	// if member id is empty, return empty memberID err
-	if suspectMessage.ID == "" {
+	if msg.ID == "" {
 		return false, ErrEmptyMemberID
 	}
 
-	config := m.suspicionConfig
-	member, exist := m.members[MemberID{suspectMessage.ID}]
-
-	// If member map does not have that member, ignore suspect message.
-	if !exist {
+	member, ok := m.members[MemberID{msg.ID}]
+	if !ok {
 		return false, nil
 	}
+
+	confirmer := msg.ConfirmerID
+	incarnation := msg.Incarnation
 
 	// if exist member incarnation is bigger than message, drop the message
-	if member.Incarnation > suspectMessage.Incarnation {
+	if member.Incarnation > incarnation {
 		return false, nil
 	}
 
-	// if suspect message's incarnation is large or equal than that of member's incarnation
-	// and if member is alive then turn this member's state into suspect with timeout handler
-	if member.Status == Alive {
-		suspicion, err := NewSuspicion(MemberID{suspectMessage.ConfirmerID}, config.k, config.min, config.max, getSuspicionCallback(m, member))
-		if err != nil {
-			iLogger.Panic(&iLogger.Fields{"err": err}, "error while create suspicion")
-		}
-
-		m.updateToSuspect(member, suspectMessage.Incarnation, suspicion, true)
-		return true, nil
+	switch member.Status {
+	case Alive:
+		return m.suspectWhenAlive(member, confirmer, incarnation)
+	case Suspected:
+		return m.suspectWhenSuspect(member, confirmer, incarnation)
+	case Dead:
+		return m.suspectWhenDead()
 	}
 
-	// if suspect message's incarnation is larger than that of member's incarnation
-	// and if member is suspect reduce timeout according to Lifeguard Dynamic Suspicion Timeout
-	// concept
-	if member.Incarnation < suspectMessage.Incarnation && member.Status == Suspected {
-		member.Incarnation = suspectMessage.Incarnation
+	return false, ErrMemberUnknownState
+}
 
-		if member.Suspicion == nil {
-			suspicion, err := NewSuspicion(MemberID{suspectMessage.ConfirmerID}, config.k, config.min, config.max, getSuspicionCallback(m, member))
-			if err != nil {
-				iLogger.Panic(&iLogger.Fields{"err": err}, "error while create suspicion")
-			}
-
-			member.Suspicion = suspicion
-			return true, nil
-		} else {
-			member.Suspicion.Confirm(MemberID{suspectMessage.ConfirmerID})
-			return true, nil
-		}
-	}
-
-	iLogger.Info(nil, "ignoring suspect message")
+func (m *MemberMap) suspectWhenDead() (bool, error) {
 	return false, nil
 }
 
-func (m *MemberMap) updateToSuspect(member *Member, incarnation uint32, suspicion *Suspicion, updateTimestamp bool) {
-	if updateTimestamp {
-		member.LastStatusChange = time.Now()
+func (m *MemberMap) suspectWhenAlive(member *Member, confirmer string, incarnation uint32) (bool, error) {
+	config := m.suspicionConfig
+
+	suspicion, err := NewSuspicion(MemberID{confirmer}, config.k, config.min, config.max, getSuspicionCallback(m, member))
+	if err != nil {
+		return false, ErrCreatingSuspicion
 	}
+
 	member.Status = Suspected
 	member.Incarnation = incarnation
+	member.LastStatusChange = time.Now()
 	member.Suspicion = suspicion
+	return true, nil
 }
 
-func (m *MemberMap) updateToDead(member *Member) {
-	member.Status = Dead
-	member.LastStatusChange = time.Now()
+func (m *MemberMap) suspectWhenSuspect(member *Member, confirmer string, incarnation uint32) (bool, error) {
+	config := m.suspicionConfig
+
+	if member.Suspicion == nil {
+		suspicion, err := NewSuspicion(MemberID{confirmer}, config.k, config.min, config.max, getSuspicionCallback(m, member))
+		if err != nil {
+			return false, ErrCreatingSuspicion
+		}
+
+		member.Suspicion = suspicion
+		member.Incarnation = incarnation
+		return true, nil
+	}
+
+	member.Incarnation = incarnation
+	member.Suspicion.Confirm(MemberID{confirmer})
+
+	return true, nil
 }
 
 // Process Alive message
@@ -299,7 +301,8 @@ func getSuspicionCallback(memberMap *MemberMap, member *Member) func() {
 			return
 		}
 
-		memberMap.updateToDead(member)
+		member.Status = Dead
+		member.LastStatusChange = time.Now()
 	}
 }
 

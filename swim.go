@@ -58,7 +58,7 @@ type SWIM struct {
 	pbkStore PBkStore
 }
 
-func New(config *Config) *SWIM {
+func New(config *Config, suspicionConfig *SuspicionConfig) *SWIM {
 
 	if config.T < config.AckTimeOut {
 		panic("T time must be longer than ack time-out")
@@ -66,7 +66,7 @@ func New(config *Config) *SWIM {
 
 	return &SWIM{
 		config:    config,
-		memberMap: NewMemberMap(),
+		memberMap: NewMemberMap(suspicionConfig),
 		quitFD:    make(chan struct{}),
 	}
 }

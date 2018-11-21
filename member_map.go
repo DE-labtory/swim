@@ -23,9 +23,12 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/it-chain/iLogger"
 )
 
 var ErrEmptyMemberID = errors.New("MemberID is empty")
+var ErrMemberUnknownStates = errors.New("unknown status")
 
 // Status of members
 type Status int
@@ -43,6 +46,18 @@ const (
 	// Dead status
 	Dead
 )
+
+type SuspicionConfig struct {
+	// k is the maximum number of independent confirmation's we'd like to see
+	// this value is for making timer to drive @min value
+	k int
+
+	// min is the minimum timer value
+	min time.Duration
+
+	// max is the maximum timer value
+	max time.Duration
+}
 
 type MemberID struct {
 	ID string
@@ -82,11 +97,6 @@ type MemberMessage struct {
 	Incarnation uint32
 }
 
-// Suspect message struct
-type SuspectMessage struct {
-	MemberMessage
-}
-
 type AliveMessage struct {
 	MemberMessage
 }
@@ -102,14 +112,22 @@ func (m *Member) GetID() MemberID {
 }
 
 type MemberMap struct {
-	lock    sync.RWMutex
-	members map[MemberID]*Member
+	lock            sync.RWMutex
+	members         map[MemberID]*Member
+	suspicionConfig *SuspicionConfig
 }
 
-func NewMemberMap() *MemberMap {
+// Suspect message struct
+type SuspectMessage struct {
+	MemberMessage
+	ConfirmerID string
+}
+
+func NewMemberMap(config *SuspicionConfig) *MemberMap {
 	return &MemberMap{
-		members: make(map[MemberID]*Member),
-		lock:    sync.RWMutex{},
+		members:         make(map[MemberID]*Member),
+		lock:            sync.RWMutex{},
+		suspicionConfig: config,
 	}
 }
 
@@ -159,38 +177,76 @@ func (m *MemberMap) GetMembers() []Member {
 	return members
 }
 
-// Override will override member status based on incarnation number and status.
-//
-// Overriding rules are following...
-//
-// 1. {Alive Ml, inc=i} overrides
-//      - {Suspect Ml, inc=j}, i>j
-//      - {Alive Ml, inc=j}, i>j
-//
-// 2. {Suspect Ml, inc=i} overrides
-//      - {Suspect Ml, inc=j}, i>j
-//      - {Alive Ml, inc=j}, i>=j
-//
-// 3. {Dead Ml, inc=i} overrides
-//      - {Suspect Ml, inc=j}, i>j
-//      - {Alive Ml, inc=j}, i>j
-func override(newMem Member, existingMem Member) Member {
+// Suspect handle suspectMessage, if this function update member states
+// return true otherwise false
+func (m *MemberMap) Suspect(suspectMessage SuspectMessage) (bool, error) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
 
-	// Check i, j
-	// All cases if incarnation number is higher then another member,
-	// override it.
-	if newMem.Incarnation > existingMem.Incarnation {
-		return newMem
+	// if member id is empty, return empty memberID err
+	if suspectMessage.ID == "" {
+		return false, ErrEmptyMemberID
 	}
 
-	// member2 == member1 case suspect status can override alive
-	if newMem.Incarnation == existingMem.Incarnation {
-		if newMem.Status == Suspected && existingMem.Status == Alive {
-			return newMem
+	config := m.suspicionConfig
+	member, exist := m.members[MemberID{suspectMessage.ID}]
+
+	// If member map does not have that member, ignore suspect message.
+	if !exist {
+		return false, nil
+	}
+
+	// if exist member incarnation is bigger than message, drop the message
+	if member.Incarnation > suspectMessage.Incarnation {
+		return false, nil
+	}
+
+	// if suspect message's incarnation is large or equal than that of member's incarnation
+	// and if member is alive then turn this member's state into suspect with timeout handler
+	if member.Status == Alive {
+		suspicion, err := NewSuspicion(MemberID{suspectMessage.ConfirmerID}, config.k, config.min, config.max, getSuspicionCallback(m, member))
+		if err != nil {
+			iLogger.Panic(&iLogger.Fields{"err": err}, "error while create suspicion")
+		}
+
+		m.updateToSuspect(member, suspectMessage.Incarnation, suspicion, true)
+		return true, nil
+	}
+
+	// if suspect message's incarnation is larger than that of member's incarnation
+	// and if member is suspect reduce timeout according to Lifeguard Dynamic Suspicion Timeout
+	// concept
+	if member.Incarnation < suspectMessage.Incarnation && member.Status == Suspected {
+		if member.Suspicion == nil {
+			suspicion, err := NewSuspicion(MemberID{suspectMessage.ConfirmerID}, config.k, config.min, config.max, getSuspicionCallback(m, member))
+			if err != nil {
+				iLogger.Panic(&iLogger.Fields{"err": err}, "error while create suspicion")
+			}
+
+			m.updateToSuspect(member, suspectMessage.Incarnation, suspicion, false)
+			return true, nil
+		} else {
+			member.Suspicion.Confirm(MemberID{suspectMessage.ConfirmerID})
+			return true, nil
 		}
 	}
 
-	return existingMem
+	iLogger.Error(nil, "unknown Status")
+	return false, ErrMemberUnknownStates
+}
+
+func (m *MemberMap) updateToSuspect(member *Member, incarnation uint32, suspicion *Suspicion, updateTimestamp bool) {
+	if updateTimestamp {
+		member.LastStatusChange = time.Now()
+	}
+	member.Status = Suspected
+	member.Incarnation = incarnation
+	member.Suspicion = suspicion
+}
+
+func (m *MemberMap) updateToDead(member *Member) {
+	member.Status = Dead
+	member.LastStatusChange = time.Now()
 }
 
 // Process Alive message
@@ -228,6 +284,21 @@ func (m *MemberMap) Alive(aliveMessage AliveMessage) (bool, error) {
 	existingMem.Incarnation = aliveMessage.Incarnation
 	existingMem.LastStatusChange = time.Now()
 	return true, nil
+}
+
+func getSuspicionCallback(memberMap *MemberMap, member *Member) func() {
+	return func() {
+		memberMap.lock.Lock()
+		defer memberMap.lock.Unlock()
+
+		member, exist := memberMap.members[member.ID]
+		if !exist {
+			iLogger.Error(nil, "member is not found in callback suspicion")
+			return
+		}
+
+		memberMap.updateToDead(member)
+	}
 }
 
 func createMember(message MemberMessage, status Status) *Member {

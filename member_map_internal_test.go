@@ -23,7 +23,7 @@ import (
 )
 
 func TestMemberMap_Alive_Internal(t *testing.T) {
-	m := NewMemberMap()
+	m := NewMemberMap(&SuspicionConfig{})
 
 	//when member 1
 	//when Incarnation Number of Parameter of Alive Func is bigger than member in memberList
@@ -71,7 +71,7 @@ func TestMemberMap_Alive_Internal(t *testing.T) {
 func TestMemberMap_GetMembers_Internal(t *testing.T) {
 
 	// given
-	m := NewMemberMap()
+	m := NewMemberMap(&SuspicionConfig{})
 
 	m.members[MemberID{ID: "1"}] = &Member{
 		ID: MemberID{
@@ -144,7 +144,7 @@ func TestMemberMap_createMember_Internal(t *testing.T) {
 func TestMemberMap_Reset_Internal_Test(t *testing.T) {
 
 	// given
-	m := NewMemberMap()
+	m := NewMemberMap(&SuspicionConfig{})
 	m.members[MemberID{"1"}] = &Member{
 		ID: MemberID{
 			ID: "1",
@@ -187,7 +187,7 @@ func TestMemberMap_Reset_Internal_Test(t *testing.T) {
 func TestMemberMap_SelectKRandomMember(t *testing.T) {
 
 	// given
-	m := NewMemberMap()
+	m := NewMemberMap(&SuspicionConfig{})
 
 	m.members[MemberID{ID: "1"}] = &Member{
 		ID: MemberID{

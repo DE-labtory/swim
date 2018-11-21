@@ -26,7 +26,7 @@ import (
 func TestMemberMap_Alive(t *testing.T) {
 
 	// given
-	m := swim.NewMemberMap()
+	m := swim.NewMemberMap(&swim.SuspicionConfig{})
 
 	// when
 	// Add new member

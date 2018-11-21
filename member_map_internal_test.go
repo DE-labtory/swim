@@ -18,6 +18,7 @@ package swim
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -223,6 +224,217 @@ func TestMemberMap_SelectKRandomMember(t *testing.T) {
 	assert.Equal(t, len(m.SelectKRandomMemberID(5)), 3)
 }
 
+func TestMemberMap_Suspect_MessageId_Empty(t *testing.T) {
+	// setup member map
+	m := NewMemberMap(&SuspicionConfig{})
+
+	msg := SuspectMessage{
+		MemberMessage: MemberMessage{
+			ID: "",
+		},
+	}
+
+	res, err := m.Suspect(msg)
+
+	assert.Equal(t, res, false)
+	assert.Equal(t, err, ErrEmptyMemberID)
+}
+
+func TestMemberMap_Suspect_When_Member_Not_Exist(t *testing.T) {
+	// setup member map
+	m := NewMemberMap(&SuspicionConfig{})
+
+	msg := SuspectMessage{
+		MemberMessage: MemberMessage{
+			ID: "12341234",
+		},
+	}
+
+	res, err := m.Suspect(msg)
+
+	assert.Equal(t, res, false)
+	assert.NoError(t, err)
+}
+
+func TestMemberMap_Suspect_With_Smaller_Incarnation(t *testing.T) {
+	// setup member map
+	member1 := &Member{
+		ID:          MemberID{ID: "1"},
+		Incarnation: 3,
+		Status:      Alive,
+	}
+
+	m := NewMemberMap(&SuspicionConfig{})
+	m.members[MemberID{ID: "1"}] = member1
+
+	msg := SuspectMessage{
+		MemberMessage: MemberMessage{
+			ID:          "1",
+			Incarnation: uint32(1),
+		},
+	}
+
+	res, err := m.Suspect(msg)
+
+	assert.Equal(t, res, false)
+	assert.Equal(t, err, nil)
+}
+
+func TestMemberMap_Suspect_When_Member_Alive(t *testing.T) {
+	// setup member map
+	member1 := &Member{
+		ID:          MemberID{ID: "1"},
+		Incarnation: 3,
+		Status:      Alive,
+	}
+	member2 := &Member{
+		ID:          MemberID{ID: "2"},
+		Incarnation: 3,
+		Status:      Alive,
+	}
+
+	m := NewMemberMap(&SuspicionConfig{})
+	m.members[MemberID{ID: "1"}] = member1
+	m.members[MemberID{ID: "2"}] = member2
+
+	// Suspect message with equal incarnation
+	msg1 := SuspectMessage{
+		MemberMessage: MemberMessage{
+			ID:          "1",
+			Incarnation: uint32(3),
+		},
+		ConfirmerID: "IAMCONFIRMER",
+	}
+
+	res, err := m.Suspect(msg1)
+
+	assert.Equal(t, res, true)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, member1.Incarnation, msg1.Incarnation)
+	assert.Equal(t, member1.Status, Suspected)
+	assert.Equal(t, member1.Suspicion.confirmations, map[MemberID]struct{}{
+		MemberID{ID: "IAMCONFIRMER"}: {},
+	})
+	assert.NotNil(t, member1.LastStatusChange)
+
+	// Suspect message with large incarnation
+	msg2 := SuspectMessage{
+		MemberMessage: MemberMessage{
+			ID:          "2",
+			Incarnation: uint32(5),
+		},
+		ConfirmerID: "IAMCONFIRMER22",
+	}
+
+	res, err = m.Suspect(msg2)
+
+	assert.Equal(t, res, true)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, member2.Incarnation, msg2.Incarnation)
+	assert.Equal(t, member2.Status, Suspected)
+	assert.Equal(t, member2.Suspicion.confirmations, map[MemberID]struct{}{
+		MemberID{ID: "IAMCONFIRMER22"}: {},
+	})
+	assert.NotNil(t, member2.LastStatusChange)
+}
+
+func TestMemberMap_Suspect_When_Member_Suspect_With_L_Incarnation_With_Nil_Suspicion(t *testing.T) {
+	// setup member map
+	member1 := &Member{
+		ID:          MemberID{ID: "1"},
+		Incarnation: 3,
+		Status:      Suspected,
+	}
+
+	m := NewMemberMap(&SuspicionConfig{})
+	m.members[MemberID{ID: "1"}] = member1
+
+	// Suspect message with equal incarnation
+	msg1 := SuspectMessage{
+		MemberMessage: MemberMessage{
+			ID:          "1",
+			Incarnation: uint32(5),
+		},
+		ConfirmerID: "IAMCONFIRMER",
+	}
+
+	res, err := m.Suspect(msg1)
+
+	assert.Equal(t, res, true)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, member1.Incarnation, msg1.Incarnation)
+	assert.Equal(t, member1.Status, Suspected)
+	assert.Equal(t, member1.Suspicion.confirmations, map[MemberID]struct{}{
+		MemberID{ID: "IAMCONFIRMER"}: {},
+	})
+	assert.NotNil(t, member1.LastStatusChange)
+}
+
+// In the case of member already have suspicion, then do not create new suspicion
+// only Confirm
+func TestMemberMap_Suspect_When_Member_Suspect_With_L_Incarnation_With_NotNil_Suspicion(t *testing.T) {
+	// setup member map
+	suspicion, _ := NewSuspicion(MemberID{ID: "ALREADY-HAVE-CONFIRMER"}, 10, time.Second, time.Hour, func() {})
+	member1 := &Member{
+		ID:          MemberID{ID: "1"},
+		Incarnation: 3,
+		Status:      Suspected,
+		Suspicion:   suspicion,
+	}
+
+	m := NewMemberMap(&SuspicionConfig{})
+	m.members[MemberID{ID: "1"}] = member1
+
+	// Suspect message with equal incarnation
+	msg1 := SuspectMessage{
+		MemberMessage: MemberMessage{
+			ID:          "1",
+			Incarnation: uint32(5),
+		},
+		ConfirmerID: "IAMCONFIRMER",
+	}
+
+	res, err := m.Suspect(msg1)
+
+	assert.Equal(t, res, true)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, member1.Incarnation, msg1.Incarnation)
+	assert.Equal(t, member1.Status, Suspected)
+	assert.Equal(t, member1.Suspicion.confirmations, map[MemberID]struct{}{
+		MemberID{ID: "ALREADY-HAVE-CONFIRMER"}: {},
+		MemberID{ID: "IAMCONFIRMER"}:           {},
+	})
+
+	// When member already have suspicion not update timestamp
+	// only update suspicion timeout, in this case member1 have no initial timestamp
+	// so assert with isZero
+	assert.True(t, member1.LastStatusChange.IsZero())
+}
+
+func TestMemberMap_Suspect_When_Member_Suspect_With_Eq_Incarnation(t *testing.T) {
+	// setup member map
+	member1 := &Member{
+		ID:          MemberID{ID: "1"},
+		Incarnation: 3,
+		Status:      Suspected,
+	}
+
+	m := NewMemberMap(&SuspicionConfig{})
+	m.members[MemberID{ID: "1"}] = member1
+
+	// Suspect message with equal incarnation
+	msg1 := SuspectMessage{
+		MemberMessage: MemberMessage{
+			ID:          "1",
+			Incarnation: uint32(3),
+		},
+		ConfirmerID: "IAMCONFIRMER",
+	}
+
+	res, err := m.Suspect(msg1)
+	assert.Equal(t, res, false)
+	assert.NoError(t, err)
+}
 func checkExist(members []Member, m Member) bool {
 	for _, member := range members {
 		if member.ID == m.ID {

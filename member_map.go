@@ -217,13 +217,15 @@ func (m *MemberMap) Suspect(suspectMessage SuspectMessage) (bool, error) {
 	// and if member is suspect reduce timeout according to Lifeguard Dynamic Suspicion Timeout
 	// concept
 	if member.Incarnation < suspectMessage.Incarnation && member.Status == Suspected {
+		member.Incarnation = suspectMessage.Incarnation
+
 		if member.Suspicion == nil {
 			suspicion, err := NewSuspicion(MemberID{suspectMessage.ConfirmerID}, config.k, config.min, config.max, getSuspicionCallback(m, member))
 			if err != nil {
 				iLogger.Panic(&iLogger.Fields{"err": err}, "error while create suspicion")
 			}
 
-			m.updateToSuspect(member, suspectMessage.Incarnation, suspicion, false)
+			member.Suspicion = suspicion
 			return true, nil
 		} else {
 			member.Suspicion.Confirm(MemberID{suspectMessage.ConfirmerID})
@@ -231,8 +233,8 @@ func (m *MemberMap) Suspect(suspectMessage SuspectMessage) (bool, error) {
 		}
 	}
 
-	iLogger.Error(nil, "unknown Status")
-	return false, ErrMemberUnknownStates
+	iLogger.Info(nil, "ignoring suspect message")
+	return false, nil
 }
 
 func (m *MemberMap) updateToSuspect(member *Member, incarnation uint32, suspicion *Suspicion, updateTimestamp bool) {

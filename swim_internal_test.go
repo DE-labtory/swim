@@ -51,8 +51,15 @@ func TestSWIM_ShutDown(t *testing.T) {
 		T:             4000,
 		AckTimeOut:    1000,
 		MaxlocalCount: 1,
-	}, &SuspicionConfig{})
-
+		BindAddress:   "127.0.0.1",
+		BindPort:      3000,
+	},
+		&SuspicionConfig{},
+		MessageEndpointConfig{
+			CallbackCollectInterval: 1000,
+		},
+		&Awareness{},
+	)
 	m := NewMemberMap(&SuspicionConfig{})
 	m.Alive(AliveMessage{
 		MemberMessage: MemberMessage{
@@ -89,10 +96,61 @@ func TestSWIM_handlePbk(t *testing.T) {
 
 }
 
+func TestSWIM_handlePing(t *testing.T) {
+	id := "1"
+
+	pbkStore := MockPbkStore{}
+	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
+		return pb.PiggyBack{
+			Type:        pb.PiggyBack_Alive,
+			Id:          "pbk_id1",
+			Incarnation: 123,
+			Address:     "address123",
+		}, nil
+	}
+
+	mIMessageHandler := MockMessageHandler{}
+
+	//mJ
+	swim := SWIM{}
+
+	mI := createMessageEndpoint(&mIMessageHandler, time.Second, 11140)
+	mJ := createMessageEndpoint(&swim, time.Second, 11141)
+
+	swim.messageEndpoint = mJ
+	swim.pbkStore = pbkStore
+
+	go mI.Listen()
+	go mJ.Listen()
+
+	ping := pb.Message{
+		Id: id,
+		// address of source member
+		Address: "127.0.0.1:11140",
+		Payload: &pb.Message_Ping{
+			Ping: &pb.Ping{},
+		},
+		PiggyBack: &pb.PiggyBack{},
+	}
+
+	defer func() {
+		mI.Shutdown()
+		mJ.Shutdown()
+	}()
+
+	resp, err := mI.SyncSend("127.0.0.1:11141", ping, DefaultSendTimeout)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp.Payload.(*pb.Message_Ack))
+	assert.Equal(t, resp.Id, id)
+	assert.Equal(t, resp.PiggyBack.Address, "address123")
+	assert.Equal(t, resp.PiggyBack.Incarnation, uint32(123))
+	assert.Equal(t, resp.PiggyBack.Id, "pbk_id1")
+}
+
 // This is successful scenario when target member response in time with
 // ack message, then mediator sends back ack message to source member
 func TestSWIM_handleIndirectPing(t *testing.T) {
-	seq := "1"
+	id := "1"
 
 	pbkStore := MockPbkStore{}
 	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
@@ -122,7 +180,7 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 	go mJ.Listen()
 
 	ind := pb.Message{
-		Seq: seq,
+		Id: id,
 		// address of source member
 		Address: "127.0.0.1:11141",
 		Payload: &pb.Message_IndirectPing{
@@ -147,14 +205,14 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 		assert.Equal(t, msg.PiggyBack.Incarnation, uint32(123))
 		assert.Equal(t, msg.PiggyBack.Id, "pbk_id1")
 
-		ack := pb.Message{Seq: msg.Seq, Payload: &pb.Message_Ack{Ack: &pb.Ack{}}, PiggyBack: &pb.PiggyBack{}}
+		ack := pb.Message{Id: msg.Id, Payload: &pb.Message_Ack{Ack: &pb.Ack{}}, PiggyBack: &pb.PiggyBack{}}
 		mJ.Send("127.0.0.1:11140", ack)
 	}
 
 	resp, err := mI.SyncSend("127.0.0.1:11140", ind, DefaultSendTimeout)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Ack))
-	assert.Equal(t, resp.Seq, seq)
+	assert.Equal(t, resp.Id, id)
 	assert.Equal(t, resp.PiggyBack.Address, "address123")
 	assert.Equal(t, resp.PiggyBack.Incarnation, uint32(123))
 	assert.Equal(t, resp.PiggyBack.Id, "pbk_id1")
@@ -163,7 +221,7 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 // This is NOT-successful scenario when target member DID NOT response in time
 // ack message, then mediator sends back NACK message to source member
 func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
-	seq := "1"
+	id := "1"
 
 	pbkStore := MockPbkStore{}
 	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
@@ -196,7 +254,7 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	go mJ.Listen()
 
 	ind := pb.Message{
-		Seq: seq,
+		Id: id,
 		// address of source member
 		Address: "127.0.0.1:11141",
 		Payload: &pb.Message_IndirectPing{
@@ -227,7 +285,7 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	resp, err := mI.SyncSend("127.0.0.1:11140", ind, DefaultSendTimeout)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Nack))
-	assert.Equal(t, resp.Seq, seq)
+	assert.Equal(t, resp.Id, id)
 	assert.Equal(t, resp.PiggyBack.Address, "address123")
 	assert.Equal(t, resp.PiggyBack.Incarnation, uint32(123))
 	assert.Equal(t, resp.PiggyBack.Id, "pbk_id1")

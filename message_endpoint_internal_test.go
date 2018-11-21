@@ -29,10 +29,10 @@ func TestNewResponseHandler(t *testing.T) {
 func TestResponseHandler_addCallback(t *testing.T) {
 	rh := newResponseHandler(time.Hour)
 	seq := "seq1"
-	msg := pb.Message{Seq: seq}
+	msg := pb.Message{Id: seq}
 	cb := callback{
 		fn: func(msg pb.Message) {
-			assert.Equal(t, seq, msg.Seq)
+			assert.Equal(t, seq, msg.Id)
 		},
 		created: time.Now(),
 	}
@@ -47,10 +47,10 @@ func TestResponseHandler_addCallback(t *testing.T) {
 func TestResponseHandler_handle_callback_exist(t *testing.T) {
 	rh := newResponseHandler(time.Hour)
 	seq := "seq1"
-	msg := pb.Message{Seq: seq}
+	msg := pb.Message{Id: seq}
 	cb := callback{
 		fn: func(msg pb.Message) {
-			assert.Equal(t, seq, msg.Seq)
+			assert.Equal(t, seq, msg.Id)
 		},
 		created: time.Now(),
 	}
@@ -68,7 +68,7 @@ func TestResponseHandler_handle_callback_exist(t *testing.T) {
 func TestResponseHandler_handle_callback_not_exist(t *testing.T) {
 	rh := newResponseHandler(time.Hour)
 	seq := "seq1"
-	msg := pb.Message{Seq: "arbitrarySeq"}
+	msg := pb.Message{Id: "arbitrarySeq"}
 	cb := callback{
 		fn:      func(msg pb.Message) {},
 		created: time.Now(),
@@ -190,7 +190,7 @@ func TestMessageEndpoint_Listen_NoCallback(t *testing.T) {
 	h := MockMessageHandler{}
 	h.handleFunc = func(msg2 pb.Message) {
 		// message assertion
-		assert.Equal(t, msg2.Seq, (*msg).Seq)
+		assert.Equal(t, msg2.Id, (*msg).Id)
 		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
 
 		// after assertion done wait group to finish test
@@ -247,7 +247,7 @@ func TestMessageEndpoint_Listen_HaveCallback(t *testing.T) {
 	e.resHandler.addCallback("seq1", callback{
 		fn: func(msg2 pb.Message) {
 			// message assertion
-			assert.Equal(t, msg2.Seq, (*msg).Seq)
+			assert.Equal(t, msg2.Id, (*msg).Id)
 			assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
 			wg.Done()
 		},
@@ -298,14 +298,14 @@ func TestMessageEndpoint_processPacket(t *testing.T) {
 	processed, err := e.processPacket(packet)
 
 	assert.NoError(t, err)
-	assert.Equal(t, processed.Seq, (*msg).Seq)
+	assert.Equal(t, processed.Id, (*msg).Id)
 	assert.Equal(t, getAckPayload(processed), getAckPayload(*msg))
 }
 
 // validateMessage should have both Seq value and Payload
 func Test_validateMessage(t *testing.T) {
 	// 1. message w/o payload expect to false
-	msg1 := pb.Message{Seq: "seq1"}
+	msg1 := pb.Message{Id: "seq1"}
 	assert.Equal(t, validateMessage(msg1), false)
 
 	// 2. message w/o seq expect to false
@@ -336,7 +336,7 @@ func TestMessageEndpoint_handleMessage(t *testing.T) {
 
 	h := MockMessageHandler{}
 	h.handleFunc = func(msg2 pb.Message) {
-		assert.Equal(t, msg2.Seq, (*msg).Seq)
+		assert.Equal(t, msg2.Id, (*msg).Id)
 		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
 	}
 	a := NewAwareness(8)
@@ -366,7 +366,7 @@ func TestMessageEndpoint_handleMessage_InvalidMessage(t *testing.T) {
 
 	h := MockMessageHandler{}
 	h.handleFunc = func(msg2 pb.Message) {
-		assert.Equal(t, msg2.Seq, (*msg).Seq)
+		assert.Equal(t, msg2.Id, (*msg).Id)
 		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
 	}
 	a := NewAwareness(8)
@@ -469,7 +469,7 @@ func TestMessageEndpoint_SyncSend_MySelf(t *testing.T) {
 	sentMsg, err := e.SyncSend("127.0.0.1:11118", *msg, time.Second*2)
 
 	assert.NoError(t, err)
-	assert.Equal(t, sentMsg.Seq, (*msg).Seq)
+	assert.Equal(t, sentMsg.Id, (*msg).Id)
 	assert.Equal(t, getAckPayload(sentMsg), getAckPayload(*msg))
 	assert.Equal(t, e.awareness.GetHealthScore(), 1)
 }
@@ -554,7 +554,7 @@ func TestMessageEndpoint_SyncSend_TwoMembers(t *testing.T) {
 	receivedMsg, err := sender.SyncSend("127.0.0.1:11130", *msg, time.Second*2)
 
 	assert.NoError(t, err)
-	assert.Equal(t, receivedMsg.Seq, (*msg).Seq)
+	assert.Equal(t, receivedMsg.Id, (*msg).Id)
 	assert.Equal(t, getAckPayload(receivedMsg), getAckPayload(*msg))
 
 	// sender's NSA score will decrease
@@ -599,7 +599,7 @@ func TestMessageEndpoint_SyncSend_When_Timeout(t *testing.T) {
 
 	h := MockMessageHandler{}
 	h.handleFunc = func(msg2 pb.Message) {
-		assert.Equal(t, msg2.Seq, (*msg).Seq)
+		assert.Equal(t, msg2.Id, (*msg).Id)
 		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
 		wg.Done()
 	}
@@ -660,7 +660,7 @@ func TestMessageEndpoint_Send(t *testing.T) {
 	// sent data should be handled by MessageHandler
 	h := MockMessageHandler{}
 	h.handleFunc = func(msg2 pb.Message) {
-		assert.Equal(t, msg2.Seq, (*msg).Seq)
+		assert.Equal(t, msg2.Id, (*msg).Id)
 		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
 		wg.Done()
 	}
@@ -682,7 +682,7 @@ func TestMessageEndpoint_Send(t *testing.T) {
 
 func getAckMessage(seq, payload string) *pb.Message {
 	return &pb.Message{
-		Seq: seq,
+		Id: seq,
 		Payload: &pb.Message_Ack{
 			Ack: &pb.Ack{Payload: payload},
 		},

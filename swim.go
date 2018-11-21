@@ -38,6 +38,10 @@ type Config struct {
 
 	// K is the number of members to send indirect ping
 	K int
+
+	// my address and port
+	BindAddress string
+	BindPort    int
 }
 
 type SWIM struct {
@@ -58,17 +62,40 @@ type SWIM struct {
 	pbkStore PBkStore
 }
 
-func New(config *Config, suspicionConfig *SuspicionConfig) *SWIM {
-
+func New(config *Config, suspicionConfig *SuspicionConfig, messageEndpointConfig MessageEndpointConfig, awareness *Awareness) *SWIM {
 	if config.T < config.AckTimeOut {
-		panic("T time must be longer than ack time-out")
+		iLogger.Panic(nil, "T time must be longer than ack time-out")
 	}
 
-	return &SWIM{
+	swim := SWIM{
 		config:    config,
 		memberMap: NewMemberMap(suspicionConfig),
 		quitFD:    make(chan struct{}),
 	}
+
+	messageEndpoint := messageEndpointFactory(config, messageEndpointConfig, &swim, awareness)
+	swim.messageEndpoint = messageEndpoint
+
+	return &swim
+}
+
+func messageEndpointFactory(config *Config, messageEndpointConfig MessageEndpointConfig, messageHandler MessageHandler, awareness *Awareness) *MessageEndpoint {
+	packetTransportConfig := PacketTransportConfig{
+		BindAddress: config.BindAddress,
+		BindPort:    config.BindPort,
+	}
+
+	packetTransport, err := NewPacketTransport(&packetTransportConfig)
+	if err != nil {
+		iLogger.Panic(nil, err.Error())
+	}
+
+	messageEndpoint, err := NewMessageEndpoint(messageEndpointConfig, packetTransport, messageHandler, awareness)
+	if err != nil {
+		iLogger.Panic(nil, err.Error())
+	}
+
+	return messageEndpoint
 }
 
 // Start SWIM protocol.
@@ -191,7 +218,7 @@ func (s *SWIM) handle(msg pb.Message) {
 
 	switch msg.Payload.(type) {
 	case *pb.Message_Ping:
-		// handle ping
+		s.handlePing(msg)
 	case *pb.Message_Ack:
 		// handle ack
 	case *pb.Message_IndirectPing:
@@ -225,12 +252,30 @@ func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 	}
 }
 
+// handlePing send back Ack message by response
+func (s *SWIM) handlePing(msg pb.Message) {
+	id := msg.Id
+
+	pbk, err := s.pbkStore.Get()
+	if err != nil {
+		iLogger.Error(nil, err.Error())
+	}
+
+	// address of messgae source member
+	scrAddr := msg.Address
+
+	ack := createAckMessage(id, &pbk)
+	if err := s.messageEndpoint.Send(scrAddr, ack); err != nil {
+		iLogger.Error(nil, err.Error())
+	}
+}
+
 // handleIndirectPing receives IndirectPing message, so send the ping message
 // to target member, if successfully receives ACK message then send back again
 // ACK message to member who sent IndirectPing message to me.
 // If ping was not successful then send back NACK message
 func (s *SWIM) handleIndirectPing(msg pb.Message) {
-	seq := msg.Seq
+	id := msg.Id
 
 	// retrieve piggyback data from pbkStore
 	pbk, err := s.pbkStore.Get()
@@ -252,14 +297,14 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	// to source member
 
 	if _, err := s.messageEndpoint.SyncSend(targetAddr, ping, DefaultSendTimeout); err != nil {
-		nack := createNackMessage(seq, &pbk)
+		nack := createNackMessage(id, &pbk)
 		if err := s.messageEndpoint.Send(srcAddr, nack); err != nil {
 			iLogger.Error(nil, err.Error())
 		}
 		return
 	}
 
-	ack := createAckMessage(seq, &pbk)
+	ack := createAckMessage(id, &pbk)
 	if err := s.messageEndpoint.Send(srcAddr, ack); err != nil {
 		iLogger.Error(nil, err.Error())
 	}
@@ -267,7 +312,7 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 
 func createPingMessage(pbk *pb.PiggyBack) pb.Message {
 	return pb.Message{
-		Seq: xid.New().String(),
+		Id: xid.New().String(),
 		Payload: &pb.Message_Ping{
 			Ping: &pb.Ping{},
 		},
@@ -277,7 +322,7 @@ func createPingMessage(pbk *pb.PiggyBack) pb.Message {
 
 func createNackMessage(seq string, pbk *pb.PiggyBack) pb.Message {
 	return pb.Message{
-		Seq: seq,
+		Id: seq,
 		Payload: &pb.Message_Nack{
 			Nack: &pb.Nack{},
 		},
@@ -287,7 +332,7 @@ func createNackMessage(seq string, pbk *pb.PiggyBack) pb.Message {
 
 func createAckMessage(seq string, pbk *pb.PiggyBack) pb.Message {
 	return pb.Message{
-		Seq: seq,
+		Id: seq,
 		Payload: &pb.Message_Ack{
 			Ack: &pb.Ack{},
 		},

@@ -70,7 +70,7 @@ func (r *responseHandler) handle(msg pb.Message) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	seq := msg.Seq
+	seq := msg.Id
 	cb, exist := r.callbacks[seq]
 
 	if exist == false {
@@ -165,7 +165,7 @@ func (m *MessageEndpoint) Listen() {
 			// check whether this message is sent-back message from other member
 			// this is determined by message's Seq property which work as message id
 
-			if m.resHandler.hasCallback(msg.Seq) {
+			if m.resHandler.hasCallback(msg.Id) {
 				go m.resHandler.handle(msg)
 			} else {
 				go m.handleMessage(msg)
@@ -201,7 +201,7 @@ func (m *MessageEndpoint) Shutdown() {
 }
 
 func validateMessage(msg pb.Message) bool {
-	if msg.Seq == "" {
+	if msg.Id == "" {
 		iLogger.Info(nil, "message seq value empty")
 		return false
 	}
@@ -258,7 +258,7 @@ func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Du
 
 	// register callback function, this callback function is called when
 	// member with @addr sent back us packet
-	m.resHandler.addCallback(msg.Seq, callback{
+	m.resHandler.addCallback(msg.Id, callback{
 		fn: func(msg pb.Message) {
 			onSucc <- msg
 		},

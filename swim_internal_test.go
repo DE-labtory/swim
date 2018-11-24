@@ -59,6 +59,7 @@ func TestSWIM_ShutDown(t *testing.T) {
 		MessageEndpointConfig{
 			CallbackCollectInterval: 1000,
 		},
+		&Member{},
 	)
 	m := NewMemberMap(&SuspicionConfig{})
 	m.Alive(AliveMessage{
@@ -96,6 +97,102 @@ func TestSWIM_handlePbk(t *testing.T) {
 
 }
 
+// When you receive message that you are suspected, you refute
+// inc always sets the standard in small inc
+// TEST : When your inc is bigger than(or same) received piggyback data.
+func TestSWIM_handlePbk_refute_bigger(t *testing.T) {
+	heapSize := 1
+	q := setUpHeap(heapSize)
+
+	pbkStore := MockPbkStore{}
+	pbkStore.PushFunc = func(pbk pb.PiggyBack) {
+		item := Item{
+			value:    pbk,
+			priority: 1,
+		}
+		q.Push(&item)
+	}
+
+	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
+		return q.Pop().(*Item).value.(pb.PiggyBack), nil
+	}
+
+	swim := SWIM{}
+	mI := createMessageEndpoint(&swim, time.Second, 11140)
+
+	swim.awareness = NewAwareness(8)
+	swim.messageEndpoint = mI
+	swim.pbkStore = pbkStore
+	swim.member = &Member{
+		ID:          MemberID{"abcde"},
+		Incarnation: 5,
+	}
+
+	msg := pb.Message{
+		PiggyBack: &pb.PiggyBack{
+			Id:          "abcde",
+			Incarnation: 5,
+			Address:     "127.0.0.1:11141",
+		},
+	}
+
+	swim.handlePbk(msg.PiggyBack)
+
+	assert.Equal(t, swim.member.Incarnation, uint32(6))
+
+	pbk, err := swim.pbkStore.Get()
+	assert.NoError(t, err)
+	assert.Equal(t, &pbk, msg.PiggyBack)
+}
+
+// When you receive message that you are suspected, you refute
+// inc always sets the standard in small inc
+// TEST : When your inc is less than your piggyback data.
+func TestSWIM_handlePbk_refute_less(t *testing.T) {
+	heapSize := 1
+	q := setUpHeap(heapSize)
+
+	pbkStore := MockPbkStore{}
+	pbkStore.PushFunc = func(pbk pb.PiggyBack) {
+		item := Item{
+			value:    pbk,
+			priority: 1,
+		}
+		q.Push(&item)
+	}
+
+	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
+		return q.Pop().(*Item).value.(pb.PiggyBack), nil
+	}
+
+	swim := SWIM{}
+	mI := createMessageEndpoint(&swim, time.Second, 11140)
+
+	swim.awareness = NewAwareness(8)
+	swim.messageEndpoint = mI
+	swim.pbkStore = pbkStore
+	swim.member = &Member{
+		ID:          MemberID{"abcde"},
+		Incarnation: 3,
+	}
+
+	msg := pb.Message{
+		PiggyBack: &pb.PiggyBack{
+			Id:          "abcde",
+			Incarnation: 5,
+			Address:     "127.0.0.1:11141",
+		},
+	}
+
+	swim.handlePbk(msg.PiggyBack)
+
+	assert.Equal(t, swim.member.Incarnation, uint32(4))
+
+	pbk, err := swim.pbkStore.Get()
+	assert.NoError(t, err)
+	assert.Equal(t, &pbk, msg.PiggyBack)
+}
+
 func TestSWIM_handlePing(t *testing.T) {
 	id := "1"
 
@@ -114,11 +211,15 @@ func TestSWIM_handlePing(t *testing.T) {
 	//mJ
 	swim := SWIM{}
 
-	mI := createMessageEndpoint(&mIMessageHandler, time.Second, 11140)
-	mJ := createMessageEndpoint(&swim, time.Second, 11141)
+	mI := createMessageEndpoint(&mIMessageHandler, time.Second, 11143)
+	mJ := createMessageEndpoint(&swim, time.Second, 11144)
 
 	swim.messageEndpoint = mJ
 	swim.pbkStore = pbkStore
+	swim.member = &Member{
+		ID:          MemberID{"abcde2"},
+		Incarnation: 3,
+	}
 
 	go mI.Listen()
 	go mJ.Listen()
@@ -126,7 +227,7 @@ func TestSWIM_handlePing(t *testing.T) {
 	ping := pb.Message{
 		Id: id,
 		// address of source member
-		Address: "127.0.0.1:11140",
+		Address: "127.0.0.1:11143",
 		Payload: &pb.Message_Ping{
 			Ping: &pb.Ping{},
 		},
@@ -138,7 +239,7 @@ func TestSWIM_handlePing(t *testing.T) {
 		mJ.Shutdown()
 	}()
 
-	resp, err := mI.SyncSend("127.0.0.1:11141", ping)
+	resp, err := mI.SyncSend("127.0.0.1:11144", ping)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Ack))
 	assert.Equal(t, resp.Id, id)
@@ -166,12 +267,16 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 	mIMessageHandler := MockMessageHandler{}
 	mJMessageHandler := MockMessageHandler{}
 
-	mK := createMessageEndpoint(&swim, time.Second, 11140)
-	mI := createMessageEndpoint(&mIMessageHandler, time.Second, 11141)
-	mJ := createMessageEndpoint(&mJMessageHandler, time.Second, 11142)
+	mK := createMessageEndpoint(&swim, time.Second, 11145)
+	mI := createMessageEndpoint(&mIMessageHandler, time.Second, 11146)
+	mJ := createMessageEndpoint(&mJMessageHandler, time.Second, 11147)
 
 	swim.messageEndpoint = mK
 	swim.pbkStore = pbkStore
+	swim.member = &Member{
+		ID:          MemberID{"abcde"},
+		Incarnation: 3,
+	}
 
 	// ** m_k's handleIndirectPing is implicitly called when m_k received
 	// indirect-ping message from other member **
@@ -182,11 +287,11 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 	ind := pb.Message{
 		Id: id,
 		// address of source member
-		Address: "127.0.0.1:11141",
+		Address: "127.0.0.1:11146",
 		Payload: &pb.Message_IndirectPing{
 			IndirectPing: &pb.IndirectPing{
 				// target address
-				Target: "127.0.0.1:11142",
+				Target: "127.0.0.1:11147",
 			},
 		},
 		PiggyBack: &pb.PiggyBack{},
@@ -206,10 +311,10 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 		assert.Equal(t, msg.PiggyBack.Id, "pbk_id1")
 
 		ack := pb.Message{Id: msg.Id, Payload: &pb.Message_Ack{Ack: &pb.Ack{}}, PiggyBack: &pb.PiggyBack{}}
-		mJ.Send("127.0.0.1:11140", ack)
+		mJ.Send("127.0.0.1:11145", ack)
 	}
 
-	resp, err := mI.SyncSend("127.0.0.1:11140", ind)
+	resp, err := mI.SyncSend("127.0.0.1:11145", ind)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Ack))
 	assert.Equal(t, resp.Id, id)
@@ -237,14 +342,18 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	mIMessageHandler := MockMessageHandler{}
 	mJMessageHandler := MockMessageHandler{}
 
-	mK := createMessageEndpoint(&swim, time.Second, 11140)
+	mK := createMessageEndpoint(&swim, time.Second, 11148)
 	// source should have larger send timeout, because source should give mediator
 	// enough time to ping to target
-	mI := createMessageEndpoint(&mIMessageHandler, time.Second*3, 11141)
-	mJ := createMessageEndpoint(&mJMessageHandler, time.Second, 11142)
+	mI := createMessageEndpoint(&mIMessageHandler, time.Second*3, 11149)
+	mJ := createMessageEndpoint(&mJMessageHandler, time.Second, 11150)
 
 	swim.messageEndpoint = mK
 	swim.pbkStore = pbkStore
+	swim.member = &Member{
+		ID:          MemberID{"abcde"},
+		Incarnation: 3,
+	}
 
 	// ** m_k's handleIndirectPing is implicitly called when m_k received
 	// indirect-ping message from other member **
@@ -256,11 +365,11 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	ind := pb.Message{
 		Id: id,
 		// address of source member
-		Address: "127.0.0.1:11141",
+		Address: "127.0.0.1:11149",
 		Payload: &pb.Message_IndirectPing{
 			IndirectPing: &pb.IndirectPing{
 				// target address
-				Target: "127.0.0.1:11142",
+				Target: "127.0.0.1:11150",
 			},
 		},
 		PiggyBack: &pb.PiggyBack{},
@@ -282,7 +391,7 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 		// DO NOT ANYTHING: do not response back to m
 	}
 
-	resp, err := mI.SyncSend("127.0.0.1:11140", ind)
+	resp, err := mI.SyncSend("127.0.0.1:11148", ind)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Nack))
 	assert.Equal(t, resp.Id, id)

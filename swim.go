@@ -22,6 +22,8 @@ import (
 	"github.com/it-chain/iLogger"
 	"github.com/rs/xid"
 
+	"sync/atomic"
+
 	"github.com/DE-labtory/swim/pb"
 )
 
@@ -61,6 +63,9 @@ type SWIM struct {
 	// messageEndpoint work both as message transmitter and message receiver
 	messageEndpoint MessageEndpoint
 
+	// Information of this node
+	member *Member
+
 	// FailureDetector quit channel
 	quitFD chan struct{}
 
@@ -68,7 +73,7 @@ type SWIM struct {
 	pbkStore PBkStore
 }
 
-func New(config *Config, suspicionConfig *SuspicionConfig, messageEndpointConfig MessageEndpointConfig) *SWIM {
+func New(config *Config, suspicionConfig *SuspicionConfig, messageEndpointConfig MessageEndpointConfig, member *Member) *SWIM {
 	if config.T < config.AckTimeOut {
 		iLogger.Panic(nil, "T time must be longer than ack time-out")
 	}
@@ -77,6 +82,7 @@ func New(config *Config, suspicionConfig *SuspicionConfig, messageEndpointConfig
 		config:    config,
 		awareness: NewAwareness(config.MaxNsaCounter),
 		memberMap: NewMemberMap(suspicionConfig),
+		member:    member,
 		quitFD:    make(chan struct{}),
 	}
 
@@ -240,6 +246,12 @@ func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 	// Check if piggyback message changes memberMap.
 	hasChanged := false
 
+	if s.member.ID.ID == piggyBack.Id {
+		s.refute(piggyBack)
+		s.pbkStore.Push(*piggyBack)
+		return
+	}
+
 	switch piggyBack.Type {
 	case pb.PiggyBack_Alive:
 		// Call Alive function in memberMap.
@@ -257,6 +269,21 @@ func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 	if hasChanged {
 		s.pbkStore.Push(*piggyBack)
 	}
+}
+
+func (s *SWIM) refute(piggyBack *pb.PiggyBack) {
+	accusedInc := piggyBack.Incarnation
+	inc := atomic.AddUint32(&s.member.Incarnation, 1)
+	if s.member.Incarnation >= accusedInc {
+		inc = atomic.AddUint32(&s.member.Incarnation, accusedInc-inc+1)
+	}
+	s.member.Incarnation = inc
+
+	// Update piggyBack's incarnation to store to pbkStore
+	piggyBack.Incarnation = inc
+
+	// Increase awareness count(Decrease our health) because we are being asked to refute a problem.
+	s.awareness.ApplyDelta(1)
 }
 
 // handlePing send back Ack message by response

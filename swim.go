@@ -53,7 +53,7 @@ type SWIM struct {
 	memberMap *MemberMap
 
 	// messageEndpoint work both as message transmitter and message receiver
-	messageEndpoint *MessageEndpoint
+	messageEndpoint MessageEndpoint
 
 	// FailureDetector quit channel
 	quitFD chan struct{}
@@ -79,7 +79,7 @@ func New(config *Config, suspicionConfig *SuspicionConfig, messageEndpointConfig
 	return &swim
 }
 
-func messageEndpointFactory(config *Config, messageEndpointConfig MessageEndpointConfig, messageHandler MessageHandler, awareness *Awareness) *MessageEndpoint {
+func messageEndpointFactory(config *Config, messageEndpointConfig MessageEndpointConfig, messageHandler MessageHandler, awareness *Awareness) MessageEndpoint {
 	packetTransportConfig := PacketTransportConfig{
 		BindAddress: config.BindAddress,
 		BindPort:    config.BindPort,

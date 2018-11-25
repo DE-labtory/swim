@@ -20,8 +20,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DE-labtory/swim/pb"
+
 	"github.com/stretchr/testify/assert"
 )
+
+type MockMessageEndpoint struct {
+	ListenFunc   func()
+	SyncSendFunc func(addr string, msg pb.Message, interval time.Duration) (pb.Message, error)
+	SendFunc     func(addr string, msg pb.Message) error
+	ShutdownFunc func()
+}
+
+func (m MockMessageEndpoint) Listen() {
+	m.ListenFunc()
+}
+func (m MockMessageEndpoint) SyncSend(addr string, msg pb.Message) (pb.Message, error) {
+	return m.SyncSendFunc(addr, msg, interval)
+}
+func (m MockMessageEndpoint) Send(addr string, msg pb.Message) error {
+	return m.SendFunc(addr, msg)
+}
+func (m MockMessageEndpoint) Shutdown() {
+	m.ShutdownFunc()
+}
 
 func TestMemberMap_Alive_Internal(t *testing.T) {
 	m := NewMemberMap(&SuspicionConfig{})

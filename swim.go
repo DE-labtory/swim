@@ -19,10 +19,9 @@ package swim
 import (
 	"time"
 
+	"github.com/DE-labtory/swim/pb"
 	"github.com/it-chain/iLogger"
 	"github.com/rs/xid"
-
-	"github.com/DE-labtory/swim/pb"
 )
 
 type Config struct {
@@ -51,6 +50,9 @@ type SWIM struct {
 
 	// Currently connected memberList
 	memberMap *MemberMap
+
+	// my information
+	host *SelfInfo
 
 	// messageEndpoint work both as message transmitter and message receiver
 	messageEndpoint *MessageEndpoint
@@ -233,20 +235,30 @@ func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 	// Check if piggyback message changes memberMap.
 	hasChanged := false
 
-	switch piggyBack.Type {
-	case pb.PiggyBack_Alive:
-		// Call Alive function in memberMap.
-	case pb.PiggyBack_Confirm:
-		// Call Confirm function in memberMap.
-	case pb.PiggyBack_Suspect:
-		// Call Suspect function in memberMap.
-	default:
-		// PiggyBack_type error
+	//If piggyBack is about me, check if i'm suspected.
+	//If i'm suspected to dead, assert that i'm alive
+	//ToDo: add annotation about the process when piggyBack is not about me.
+	if s.isMyPbk(piggyBack) {
+
+		hasChanged = s.assertAlive(piggyBack)
+
+	} else {
+		//todo: abstract below
+		switch piggyBack.Type {
+		case pb.PiggyBack_Alive:
+			// Call Alive function in memberMap.
+		case pb.PiggyBack_Confirm:
+			// Call Confirm function in memberMap.
+		case pb.PiggyBack_Suspect:
+			// Call Suspect function in memberMap.
+		default:
+			// PiggyBack_type error
+		}
 	}
 
-	// Push piggyback when status of membermap has updated.
+	// Push piggyback when status of membermap has been updated.
 	// If the content of the piggyback is about a new state change,
-	// it must propagate to inform the network of the new state change.
+	// it must be propagated to inform the network that state has been changed.
 	if hasChanged {
 		s.pbkStore.Push(*piggyBack)
 	}
@@ -268,6 +280,25 @@ func (s *SWIM) handlePing(msg pb.Message) {
 	if err := s.messageEndpoint.Send(scrAddr, ack); err != nil {
 		iLogger.Error(nil, err.Error())
 	}
+}
+
+func (s *SWIM) isMyPbk(piggyBack *pb.PiggyBack) bool {
+	return s.host.ID.ID == piggyBack.Id
+}
+
+func (s *SWIM) assertAlive(piggyBack *pb.PiggyBack) bool {
+
+	if piggyBack.IsSuspect() {
+		piggyBack.Type = pb.PiggyBack_Alive
+		piggyBack.Incarnation += 1
+
+		//ToDo: check if it is needed
+		s.host.Incarnation = piggyBack.Incarnation
+
+		return true
+	}
+
+	return false
 }
 
 // handleIndirectPing receives IndirectPing message, so send the ping message

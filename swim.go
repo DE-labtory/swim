@@ -18,6 +18,8 @@ package swim
 
 import (
 	"errors"
+	"net"
+	"strconv"
 	"time"
 
 	"sync/atomic"
@@ -303,6 +305,12 @@ func (s *SWIM) ShutDown() {
 	s.quitFD <- struct{}{}
 }
 
+// address returns local-node (myself) address
+// TODO: I think there's better way to store local-node(myself) status
+func (s *SWIM) address() string {
+	return net.JoinHostPort(s.config.BindAddress, strconv.Itoa(s.config.BindPort))
+}
+
 // Total Failure Detection is performed for each` T`. (ref: https://github.com/DE-labtory/swim/edit/develop/docs/Docs.md)
 //
 // 1. SWIM randomly selects a member(j) in the memberMap and ping to the member(j).
@@ -436,15 +444,15 @@ func (s *SWIM) indirectProbe(target *Member, end, indFailed chan struct{}) {
 // 2. successfully probed
 //    in the case of successfully probe target node, update member state with
 //    piggyback message sent from target member.
-func (s *SWIM) ping(member *Member, end, pingFailed chan struct{}) {
+func (s *SWIM) ping(target *Member, end, pingFailed chan struct{}) {
 	stats, err := s.mbrStatsMsgStore.Get()
 	if err != nil {
 		iLogger.Error(nil, err.Error())
 	}
 
 	// send ping message
-	addr := member.Address()
-	ping := createPingMessage(&stats)
+	addr := target.Address()
+	ping := createPingMessage(s.address(), &stats)
 
 	res, err := s.messageEndpoint.SyncSend(addr, ping)
 	if err != nil {
@@ -452,7 +460,6 @@ func (s *SWIM) ping(member *Member, end, pingFailed chan struct{}) {
 		pingFailed <- struct{}{}
 		return
 	}
-	// TODO: update awareness
 
 	// update piggyback data to store
 	s.handlePbk(res.PiggyBack)
@@ -462,15 +469,15 @@ func (s *SWIM) ping(member *Member, end, pingFailed chan struct{}) {
 // indirectPing sends indirect-ping to @member targeting @target member
 // ** only when @member sends back to local node, push Message to channel
 // otherwise just return **
-func (s *SWIM) indirectPing(member, target *Member, indSucc chan pb.Message) {
+func (s *SWIM) indirectPing(mediator, target *Member, indSucc chan pb.Message) {
 	stats, err := s.mbrStatsMsgStore.Get()
 	if err != nil {
 		iLogger.Error(nil, err.Error())
 	}
 
 	// send indirect-ping message
-	addr := member.Address()
-	ind := createIndMessage(s.member.Address(), target.Address(), &stats)
+	addr := mediator.Address()
+	ind := createIndMessage(s.address(), target.Address(), &stats)
 
 	res, err := s.messageEndpoint.SyncSend(addr, ind)
 
@@ -480,7 +487,6 @@ func (s *SWIM) indirectPing(member, target *Member, indSucc chan pb.Message) {
 		iLogger.Error(nil, err.Error())
 		return
 	}
-	// TODO: update awareness
 
 	// update piggyback data to store
 	s.handlePbk(res.PiggyBack)
@@ -495,7 +501,7 @@ func (s *SWIM) suspect(member *Member) {
 		iLogger.Error(nil, err.Error())
 	}
 
-	iLogger.Infof(nil, "Result of suspect [%s]", result)
+	iLogger.Infof(nil, "Result of suspect [%t]", result)
 }
 
 // handler interface to handle received message
@@ -576,7 +582,7 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	// address of indirect-ping's target
 	targetAddr := msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target
 
-	ping := createPingMessage(&mbrStatsMsg)
+	ping := createPingMessage(srcAddr, &mbrStatsMsg)
 	// first send the ping to target member, if target member could not send-back
 	// ack message for whatever reason send nack message to source member,
 	// if successfully received ack message from target, then send back ack message
@@ -622,9 +628,10 @@ func (s *SWIM) handleMembership(membership *pb.Membership, address string) error
 	return nil
 }
 
-func createPingMessage(mbrStatsMsg *pb.MbrStatsMsg) pb.Message {
+func createPingMessage(src string, mbrStatsMsg *pb.MbrStatsMsg) pb.Message {
 	return pb.Message{
-		Id: xid.New().String(),
+		Id:      xid.New().String(),
+		Address: src,
 		Payload: &pb.Message_Ping{
 			Ping: &pb.Ping{},
 		},

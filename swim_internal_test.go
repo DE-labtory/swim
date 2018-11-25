@@ -26,23 +26,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type MockmbrStatsMsgStore struct {
+type MockMbrStatsMsgStore struct {
 	LenFunc     func() int
 	PushFunc    func(mbrStatsMsg pb.MbrStatsMsg)
 	GetFunc     func() (pb.MbrStatsMsg, error)
 	IsEmptyFunc func() bool
 }
 
-func (p MockmbrStatsMsgStore) Len() int {
+func (p MockMbrStatsMsgStore) Len() int {
 	return p.LenFunc()
 }
-func (p MockmbrStatsMsgStore) Push(mbrStatsMsg pb.MbrStatsMsg) {
+func (p MockMbrStatsMsgStore) Push(mbrStatsMsg pb.MbrStatsMsg) {
 	p.PushFunc(mbrStatsMsg)
 }
-func (p MockmbrStatsMsgStore) Get() (pb.MbrStatsMsg, error) {
+func (p MockMbrStatsMsgStore) Get() (pb.MbrStatsMsg, error) {
 	return p.GetFunc()
 }
-func (p MockmbrStatsMsgStore) IsEmpty() bool {
+func (p MockMbrStatsMsgStore) IsEmpty() bool {
 	return p.IsEmptyFunc()
 }
 
@@ -101,7 +101,7 @@ func TestSWIM_handlembrStatsMsg_refute_bigger(t *testing.T) {
 	heapSize := 1
 	q := setUpHeap(heapSize)
 
-	mbrStatsMsgStore := MockmbrStatsMsgStore{}
+	mbrStatsMsgStore := MockMbrStatsMsgStore{}
 	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
 		item := Item{
 			value:    mbrStatsMsg,
@@ -151,7 +151,7 @@ func TestSWIM_handlembrStatsMsg_refute_less(t *testing.T) {
 	heapSize := 1
 	q := setUpHeap(heapSize)
 
-	mbrStatsMsgStore := MockmbrStatsMsgStore{}
+	mbrStatsMsgStore := MockMbrStatsMsgStore{}
 	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
 		item := Item{
 			value:    mbrStatsMsg,
@@ -198,7 +198,7 @@ func TestSWIM_HandleMbrStatsMsg_AliveMsg(t *testing.T) {
 	// setup MbrStatsMsgStore
 	var pushedMbrStatsMsg pb.MbrStatsMsg
 
-	mbrStatsMsgStore := &MockmbrStatsMsgStore{}
+	mbrStatsMsgStore := &MockMbrStatsMsgStore{}
 	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
 		pushedMbrStatsMsg = mbrStatsMsg
 	}
@@ -244,7 +244,7 @@ func TestSWIM_HandleMbrStatsMsg_AliveMsg_Error(t *testing.T) {
 	// setup MbrStatsMsgStore
 	var pushedMbrStatsMsg pb.MbrStatsMsg
 
-	mbrStatsMsgStore := &MockmbrStatsMsgStore{}
+	mbrStatsMsgStore := &MockMbrStatsMsgStore{}
 	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
 		pushedMbrStatsMsg = mbrStatsMsg
 	}
@@ -289,7 +289,7 @@ func TestSWIM_HandleMbrStatsMsg_SuspectMsg(t *testing.T) {
 	// setup MbrStatsMsgStore
 	var pushedMbrStatsMsg pb.MbrStatsMsg
 
-	mbrStatsMsgStore := &MockmbrStatsMsgStore{}
+	mbrStatsMsgStore := &MockMbrStatsMsgStore{}
 	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
 		pushedMbrStatsMsg = mbrStatsMsg
 	}
@@ -335,7 +335,7 @@ func TestSWIM_HandleMbrStatsMsg_SuspectMsg_Error(t *testing.T) {
 	// setup MbrStatsMsgStore
 	var pushedMbrStatsMsg pb.MbrStatsMsg
 
-	mbrStatsMsgStore := &MockmbrStatsMsgStore{}
+	mbrStatsMsgStore := &MockMbrStatsMsgStore{}
 	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
 		pushedMbrStatsMsg = mbrStatsMsg
 	}
@@ -379,7 +379,7 @@ func TestSWIM_HandleMbrStatsMsg_SuspectMsg_Error(t *testing.T) {
 func TestSWIM_handlePing(t *testing.T) {
 	id := "1"
 
-	mbrStatsMsgStore := MockmbrStatsMsgStore{}
+	mbrStatsMsgStore := MockMbrStatsMsgStore{}
 	mbrStatsMsgStore.GetFunc = func() (pb.MbrStatsMsg, error) {
 		return pb.MbrStatsMsg{
 			Type:        pb.MbrStatsMsg_Alive,
@@ -438,7 +438,7 @@ func TestSWIM_handlePing(t *testing.T) {
 func TestSWIM_handleIndirectPing(t *testing.T) {
 	id := "1"
 
-	mbrStatsMsgStore := MockmbrStatsMsgStore{}
+	mbrStatsMsgStore := MockMbrStatsMsgStore{}
 	mbrStatsMsgStore.GetFunc = func() (pb.MbrStatsMsg, error) {
 		return pb.MbrStatsMsg{
 			Type:        pb.MbrStatsMsg_Alive,
@@ -517,7 +517,7 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	id := "1"
 
-	mbrStatsMsgStore := MockmbrStatsMsgStore{}
+	mbrStatsMsgStore := MockMbrStatsMsgStore{}
 	mbrStatsMsgStore.GetFunc = func() (pb.MbrStatsMsg, error) {
 		return pb.MbrStatsMsg{
 			Type:        pb.MbrStatsMsg_Alive,
@@ -792,6 +792,219 @@ func TestHandleSuspectMbrStats_Success(t *testing.T) {
 	// then
 	assert.Equal(t, true, result)
 	assert.NoError(t, err)
+}
+
+func TestSWIM_indirectPing_When_Response_Success(t *testing.T) {
+	stats := pb.PiggyBack{
+		MbrStatsMsg: &pb.MbrStatsMsg{
+			Type:        pb.MbrStatsMsg_Alive,
+			Id:          "123",
+			Incarnation: uint32(123),
+			Address:     "pbk-addr1",
+		},
+	}
+	pbkStore := MockMbrStatsMsgStore{}
+	pbkStore.PushFunc = func(pbk pb.MbrStatsMsg) {}
+	pbkStore.GetFunc = func() (pb.MbrStatsMsg, error) {
+		return *stats.MbrStatsMsg, nil
+	}
+
+	messageEndpoint := MockMessageEndpoint{}
+	messageEndpoint.SyncSendFunc = func(addr string, msg pb.Message, interval time.Duration) (pb.Message, error) {
+		// this addr should be mediator address
+		assert.Equal(t, addr, "1.2.3.4:11111")
+
+		// msg.Address should be local-node address
+		assert.Equal(t, msg.Address, "9.8.7.6:33333")
+		assert.Equal(t, msg.PiggyBack.MbrStatsMsg, stats)
+		assert.Equal(t, msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target, "3.4.5.6:22222")
+
+		return pb.Message{
+			Id:      "responseID",
+			Address: "3.4.5.6:22222",
+			Payload: &pb.Message_Ack{
+				Ack: &pb.Ack{
+					Payload: "ack-payload",
+				},
+			},
+			PiggyBack: &pb.PiggyBack{
+				MbrStatsMsg: &pb.MbrStatsMsg{
+					Type:        pb.MbrStatsMsg_Alive,
+					Id:          "555",
+					Incarnation: uint32(345),
+					Address:     "pbk-addr2",
+				},
+			},
+		}, nil
+	}
+
+	member := &Member{
+		ID:   MemberID{ID: "memberID"},
+		Addr: net.ParseIP("1.2.3.4"),
+		Port: uint16(11111),
+	}
+	target := &Member{
+		ID:   MemberID{ID: "targetID"},
+		Addr: net.ParseIP("3.4.5.6"),
+		Port: uint16(22222),
+	}
+
+	indSucc := make(chan pb.Message)
+	defer close(indSucc)
+
+	config := &Config{
+		BindAddress: "9.8.7.6",
+		BindPort:    33333,
+	}
+
+	swim := &SWIM{}
+	swim.config = config
+	swim.mbrStatsMsgStore = pbkStore
+	swim.messageEndpoint = messageEndpoint
+
+	go swim.indirectPing(member, target, indSucc)
+
+	select {
+	case msg := <-indSucc:
+		assert.Equal(t, msg.Id, "responseID")
+		assert.Equal(t, msg.Address, "3.4.5.6:22222")
+		assert.Equal(t, getAckPayload(msg), "ack-payload")
+	}
+}
+
+func TestSWIM_indirectPing_When_Response_Failed(t *testing.T) {
+	pbk := pb.PiggyBack{
+		MbrStatsMsg: &pb.MbrStatsMsg{
+			Type:        pb.MbrStatsMsg_Alive,
+			Id:          "123",
+			Incarnation: uint32(123),
+			Address:     "pbk-addr1",
+		},
+	}
+	pbkStore := MockMbrStatsMsgStore{}
+	pbkStore.PushFunc = func(pbk pb.MbrStatsMsg) {}
+	pbkStore.GetFunc = func() (pb.MbrStatsMsg, error) {
+		return *pbk.MbrStatsMsg, nil
+	}
+
+	messageEndpoint := MockMessageEndpoint{}
+	messageEndpoint.SyncSendFunc = func(addr string, msg pb.Message, interval time.Duration) (pb.Message, error) {
+		// this addr should be mediator address
+		assert.Equal(t, addr, "1.2.3.4:11111")
+
+		// msg.Address should be local-node address
+		assert.Equal(t, msg.Address, "9.8.7.6:33333")
+		assert.Equal(t, msg.PiggyBack, &pbk)
+		assert.Equal(t, msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target, "3.4.5.6:22222")
+
+		// in this case, send out Timeout error
+		return pb.Message{}, ErrSendTimeout
+	}
+
+	member := &Member{
+		ID:   MemberID{ID: "memberID"},
+		Addr: net.ParseIP("1.2.3.4"),
+		Port: uint16(11111),
+	}
+	target := &Member{
+		ID:   MemberID{ID: "targetID"},
+		Addr: net.ParseIP("3.4.5.6"),
+		Port: uint16(22222),
+	}
+	indSucc := make(chan pb.Message)
+
+	config := &Config{
+		BindAddress: "9.8.7.6",
+		BindPort:    33333,
+	}
+
+	swim := &SWIM{}
+	swim.config = config
+	swim.mbrStatsMsgStore = pbkStore
+	swim.messageEndpoint = messageEndpoint
+
+	go swim.indirectPing(member, target, indSucc)
+
+	T := time.NewTimer(time.Second)
+
+	select {
+	case <-indSucc:
+		panic("This shouldn't be called")
+	case <-T.C:
+		return
+	}
+}
+
+func TestSWIM_ping_When_Response_Success(t *testing.T) {
+	pbk := pb.PiggyBack{
+		MbrStatsMsg: &pb.MbrStatsMsg{
+			Type:        pb.MbrStatsMsg_Alive,
+			Id:          "123",
+			Incarnation: uint32(123),
+			Address:     "pbk-addr1",
+		},
+	}
+	pbkStore := MockMbrStatsMsgStore{}
+	pbkStore.PushFunc = func(pbk pb.MbrStatsMsg) {}
+	pbkStore.GetFunc = func() (pb.MbrStatsMsg, error) {
+		return *pbk.MbrStatsMsg, nil
+	}
+
+	messageEndpoint := MockMessageEndpoint{}
+	messageEndpoint.SyncSendFunc = func(addr string, msg pb.Message, interval time.Duration) (pb.Message, error) {
+		assert.Equal(t, addr, "1.2.3.4:11111")
+		assert.Equal(t, msg.Address, "1.2.3.4:11111")
+		assert.Equal(t, msg.PiggyBack, &pbk)
+		assert.Equal(t, msg.Payload.(*pb.Message_Ping).Ping, pb.Ping{})
+
+		return pb.Message{
+			Id:      "responseID",
+			Address: "3.4.5.6:22222",
+			Payload: &pb.Message_Ack{
+				Ack: &pb.Ack{
+					Payload: "ack-payload",
+				},
+			},
+			PiggyBack: &pb.PiggyBack{
+				MbrStatsMsg: &pb.MbrStatsMsg{
+					Type:        pb.MbrStatsMsg_Alive,
+					Id:          "555",
+					Incarnation: uint32(345),
+					Address:     "pbk-addr2",
+				},
+			},
+		}, nil
+	}
+
+	member := &Member{
+		ID:   MemberID{ID: "memberID"},
+		Addr: net.ParseIP("1.2.3.4"),
+		Port: uint16(11111),
+	}
+
+	end := make(chan struct{})
+	pingFailed := make(chan struct{})
+	defer func() {
+		close(end)
+		close(pingFailed)
+	}()
+
+	swim := &SWIM{}
+	swim.mbrStatsMsgStore = pbkStore
+	swim.messageEndpoint = messageEndpoint
+
+	go swim.ping(member, end, pingFailed)
+
+	select {
+	case <-end:
+		return
+	case <-pingFailed:
+		panic("This shouldn't be called")
+	}
+}
+
+func TestSWIM_ping_When_Response_Failed(t *testing.T) {
+
 }
 
 func createMessageEndpoint(messageHandler MessageHandler, sendTimeout time.Duration, port int) MessageEndpoint {

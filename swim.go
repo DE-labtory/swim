@@ -17,9 +17,11 @@
 package swim
 
 import (
+	"context"
 	"errors"
 	"net"
 	"strconv"
+	"sync"
 	"time"
 
 	"sync/atomic"
@@ -30,6 +32,8 @@ import (
 )
 
 var ErrInvalidMbrStatsMsgType = errors.New("error invalid mbrStatsMsg type")
+var ErrAllSentNackMsg = errors.New("error all of m_k members sent back nack message")
+var ErrAllSentInvalidMsg = errors.New("error all of m_k members sent back invalid message")
 
 type Config struct {
 
@@ -54,8 +58,6 @@ type Config struct {
 }
 
 type SWIM struct {
-	ID string
-
 	// Swim Config
 	config *Config
 
@@ -83,7 +85,6 @@ func New(config *Config, suspicionConfig *SuspicionConfig, messageEndpointConfig
 		iLogger.Panic(nil, "T time must be longer than ack time-out")
 	}
 
-	// TODO: create ID
 	swim := SWIM{
 		config:    config,
 		awareness: NewAwareness(config.MaxNsaCounter),
@@ -369,26 +370,50 @@ func (s *SWIM) probe(member Member) {
 	}
 
 	end := make(chan struct{}, 1)
-	pingFailed := make(chan struct{}, 1)
-	indFailed := make(chan struct{}, 1)
+	failed := make(chan struct{}, 1)
 	defer func() {
 		close(end)
-		close(pingFailed)
-		close(indFailed)
+		close(failed)
 	}()
 
-	go s.ping(&member, end, pingFailed)
+	go func() {
+		err := s.ping(&member)
+		if err == nil {
+			end <- struct{}{}
+			return
+		}
+		if err == ErrSendTimeout {
+			iLogger.Errorf(nil, "Error occurred when ping failed [%s]", err.Error())
+			return
+		}
+
+		err = s.indirectProbe(&member)
+		if err != nil {
+			failed <- struct{}{}
+			return
+		}
+
+		end <- struct{}{}
+	}()
 
 	T := time.NewTimer(time.Millisecond * time.Duration(s.config.T))
 
 	for {
 		select {
+		// if successfully probed target member, then just return
 		case <-end:
+			iLogger.Infof(nil, "probe member [%s] successfully finished", member.ID)
 			return
-		case <-pingFailed:
-			go s.indirectProbe(&member, end, indFailed)
-		case <-indFailed:
+
+		// if probe failed, then suspect member
+		case <-failed:
+			iLogger.Infof(nil, "probe member [%s] failed, start suspect", member.ID)
+			s.suspect(&member)
+			return
+
+		// if timed-out, then suspect member
 		case <-T.C:
+			iLogger.Infof(nil, "probe member [%s] failed, start suspect", member.ID)
 			s.suspect(&member)
 			return
 		}
@@ -397,18 +422,34 @@ func (s *SWIM) probe(member Member) {
 
 // indirectProbe select k-random member from MemberMap, sends
 // indirect-ping to them. if one of them sends back Ack message
-// then indirectProbe success, otherwise failed
-func (s *SWIM) indirectProbe(target *Member, end, indFailed chan struct{}) {
-	returnedNack := 0
+// then indirectProbe success, otherwise failed.
+// if one of k-member successfully received ACK message, then cancel
+// k-1 member's probe
+func (s *SWIM) indirectProbe(target *Member) error {
+	wg := &sync.WaitGroup{}
+
+	returnedNackCounter := 0
+	invalidResponseCounter := 0
+
+	// with cancel we can send the signal to goroutines which share
+	// this @ctx context
+	ctx, cancel := context.WithCancel(context.Background())
 
 	indResponse := make(chan pb.Message)
-	defer close(indResponse)
+
+	defer func() {
+		cancel()
+		close(indResponse)
+	}()
 
 	// select k-random member from member map, then sends indirect-ping
 	k := s.config.K
+
+	wg.Add(k)
+
 	kMembers := s.memberMap.SelectKRandomMemberID(k)
 	for _, member := range kMembers {
-		go s.indirectPing(&member, target, indResponse)
+		go s.indirectPing(ctx, wg, &member, target, indResponse)
 	}
 
 	// wait until k-random member sends back response, if response message
@@ -417,21 +458,30 @@ func (s *SWIM) indirectProbe(target *Member, end, indFailed chan struct{}) {
 	// counter then wait other member's response
 	// if all of k-random members sends back Nack message, then indirectProbe
 	// failed.
+
 	for {
 		select {
 		case msg := <-indResponse:
 			switch msg.Payload.(type) {
 			case *pb.Message_Ack:
-				end <- struct{}{}
-				return
+				// if one of members received ACK message then send the cancel
+				// signal to other members, then wait until other members receive
+				// this cancel signal
+				cancel()
+				wg.Wait()
+				return nil
 			case *pb.Message_Nack:
-				returnedNack += 1
-				if returnedNack == k {
-					indFailed <- struct{}{}
-					return
+				returnedNackCounter += 1
+				if returnedNackCounter == k {
+					return ErrAllSentNackMsg
 				}
 			default:
-				iLogger.Error(nil, "Invalid message type")
+				iLogger.Errorf(nil, "Invalid message type from [%s]", msg.Address)
+
+				invalidResponseCounter += 1
+				if invalidResponseCounter == k {
+					return ErrAllSentInvalidMsg
+				}
 			}
 		}
 	}
@@ -444,7 +494,7 @@ func (s *SWIM) indirectProbe(target *Member, end, indFailed chan struct{}) {
 // 2. successfully probed
 //    in the case of successfully probe target node, update member state with
 //    piggyback message sent from target member.
-func (s *SWIM) ping(target *Member, end, pingFailed chan struct{}) {
+func (s *SWIM) ping(target *Member) error {
 	stats, err := s.mbrStatsMsgStore.Get()
 	if err != nil {
 		iLogger.Error(nil, err.Error())
@@ -456,45 +506,62 @@ func (s *SWIM) ping(target *Member, end, pingFailed chan struct{}) {
 
 	res, err := s.messageEndpoint.SyncSend(addr, ping)
 	if err != nil {
-		iLogger.Error(nil, err.Error())
-		pingFailed <- struct{}{}
-		return
+		return err
 	}
 
 	// update piggyback data to store
 	s.handlePbk(res.PiggyBack)
-	end <- struct{}{}
+
+	return nil
 }
 
 // indirectPing sends indirect-ping to @member targeting @target member
 // ** only when @member sends back to local node, push Message to channel
 // otherwise just return **
-func (s *SWIM) indirectPing(mediator, target *Member, indSucc chan pb.Message) {
+// @ctx is for sending cancel signal from outside, when one of k-member successfully
+// received ACK message or when in the exceptional situation
+func (s *SWIM) indirectPing(ctx context.Context, wg *sync.WaitGroup, mediator, target *Member, indSucc chan pb.Message) {
+	defer wg.Done()
+
 	stats, err := s.mbrStatsMsgStore.Get()
 	if err != nil {
 		iLogger.Error(nil, err.Error())
 	}
 
+	done := make(chan pb.Message)
+
 	// send indirect-ping message
 	addr := mediator.Address()
 	ind := createIndMessage(s.address(), target.Address(), &stats)
 
-	res, err := s.messageEndpoint.SyncSend(addr, ind)
+	go func() {
+		res, err := s.messageEndpoint.SyncSend(addr, ind)
 
-	// when communicating member and target with indirect-ping failed,
-	// just return.
-	if err != nil {
-		iLogger.Error(nil, err.Error())
+		// when communicating member and target with indirect-ping failed,
+		// just return.
+		if err != nil {
+			iLogger.Error(nil, err.Error())
+			return
+		}
+		// update piggyback data to store
+		s.handlePbk(res.PiggyBack)
+		done <- res
+	}()
+
+	select {
+	case res := <-done:
+		indSucc <- res
+		return
+
+	// when one of the k-member received ACK message then
+	// cancel my indirect-probe
+	case <-ctx.Done():
 		return
 	}
-
-	// update piggyback data to store
-	s.handlePbk(res.PiggyBack)
-	indSucc <- res
 }
 
 func (s *SWIM) suspect(member *Member) {
-	msg := createSuspectMessage(member, s.ID)
+	msg := createSuspectMessage(member, s.member.ID.ID)
 
 	result, err := s.memberMap.Suspect(msg)
 	if err != nil {
@@ -583,6 +650,7 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	targetAddr := msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target
 
 	ping := createPingMessage(srcAddr, &mbrStatsMsg)
+
 	// first send the ping to target member, if target member could not send-back
 	// ack message for whatever reason send nack message to source member,
 	// if successfully received ack message from target, then send back ack message

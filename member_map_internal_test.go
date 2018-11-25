@@ -27,7 +27,7 @@ import (
 
 type MockMessageEndpoint struct {
 	ListenFunc   func()
-	SyncSendFunc func(addr string, msg pb.Message, interval time.Duration) (pb.Message, error)
+	SyncSendFunc func(addr string, msg pb.Message) (pb.Message, error)
 	SendFunc     func(addr string, msg pb.Message) error
 	ShutdownFunc func()
 }
@@ -36,7 +36,7 @@ func (m MockMessageEndpoint) Listen() {
 	m.ListenFunc()
 }
 func (m MockMessageEndpoint) SyncSend(addr string, msg pb.Message) (pb.Message, error) {
-	return m.SyncSendFunc(addr, msg, interval)
+	return m.SyncSendFunc(addr, msg)
 }
 func (m MockMessageEndpoint) Send(addr string, msg pb.Message) error {
 	return m.SendFunc(addr, msg)

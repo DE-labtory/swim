@@ -112,6 +112,13 @@ func (r *responseHandler) collectGarbageCallback() {
 	}
 }
 
+type MessageEndpoint interface {
+	Listen()
+	SyncSend(addr string, msg pb.Message, interval time.Duration) (pb.Message, error)
+	Send(addr string, msg pb.Message) error
+	Shutdown()
+}
+
 const DefaultSendTimeout = time.Duration(0)
 
 type MessageEndpointConfig struct {
@@ -125,7 +132,7 @@ type MessageEndpointConfig struct {
 
 // MessageEndpoint basically do receiving packet and determine
 // which logic executed based on the packet.
-type MessageEndpoint struct {
+type DefaultMessageEndpoint struct {
 	config         MessageEndpointConfig
 	transport      UDPTransport
 	messageHandler MessageHandler
@@ -134,12 +141,12 @@ type MessageEndpoint struct {
 	quit           chan struct{}
 }
 
-func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, messageHandler MessageHandler, awareness *Awareness) (*MessageEndpoint, error) {
+func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, messageHandler MessageHandler, awareness *Awareness) (MessageEndpoint, error) {
 	if config.CallbackCollectInterval == time.Duration(0) {
 		return nil, ErrCallbackCollectIntervalNotSpecified
 	}
 
-	return &MessageEndpoint{
+	return &DefaultMessageEndpoint{
 		config:         config,
 		transport:      transport,
 		messageHandler: messageHandler,
@@ -151,7 +158,7 @@ func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, me
 
 // Listen is a log running goroutine that pulls packet from the
 // transport and pass it for processing
-func (m *MessageEndpoint) Listen() {
+func (m *DefaultMessageEndpoint) Listen() {
 	for {
 		select {
 		case packet := <-m.transport.PacketCh():
@@ -179,7 +186,7 @@ func (m *MessageEndpoint) Listen() {
 
 // ProcessPacket process given packet, this procedure may include
 // decrypting data and converting it to message
-func (m *MessageEndpoint) processPacket(packet Packet) (pb.Message, error) {
+func (m *DefaultMessageEndpoint) processPacket(packet Packet) (pb.Message, error) {
 	msg := &pb.Message{}
 	if m.config.EncryptionEnabled {
 		// TODO: decrypt packet
@@ -190,14 +197,6 @@ func (m *MessageEndpoint) processPacket(packet Packet) (pb.Message, error) {
 	}
 
 	return *msg, nil
-}
-
-func (m *MessageEndpoint) Shutdown() {
-	// close transport first
-	m.transport.Shutdown()
-
-	// then close message endpoint
-	m.quit <- struct{}{}
 }
 
 func validateMessage(msg pb.Message) bool {
@@ -217,7 +216,7 @@ func validateMessage(msg pb.Message) bool {
 // with given message handleMessage determine which logic should be executed
 // based on the message type. Additionally handleMessage can call MemberDelegater
 // to update member status and encrypt messages
-func (m *MessageEndpoint) handleMessage(msg pb.Message) error {
+func (m *DefaultMessageEndpoint) handleMessage(msg pb.Message) error {
 	// validate message
 	if !validateMessage(msg) {
 		return ErrInvalidMessage
@@ -231,7 +230,7 @@ func (m *MessageEndpoint) handleMessage(msg pb.Message) error {
 
 // determineSendTimeout if @timeout is given, then use this value as timeout value
 // otherwise calculate timeout value based on the awareness
-func (m *MessageEndpoint) determineSendTimeout(timeout time.Duration) time.Duration {
+func (m *DefaultMessageEndpoint) determineSendTimeout(timeout time.Duration) time.Duration {
 	if timeout != DefaultSendTimeout {
 		return timeout
 	}
@@ -243,7 +242,7 @@ func (m *MessageEndpoint) determineSendTimeout(timeout time.Duration) time.Durat
 // whether it is timeout or send failed, SyncSend can be used in the case of pinging to other members.
 // if @timeout is provided then set send timeout to given parameters, if not then calculate
 // timeout based on the its awareness
-func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Duration) (pb.Message, error) {
+func (m *DefaultMessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Duration) (pb.Message, error) {
 	onSucc := make(chan pb.Message)
 	defer close(onSucc)
 
@@ -296,7 +295,7 @@ func (m *MessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Du
 // Send asynchronously send message to member of addr, don't wait until response come back,
 // after response came back, callback function executed, Send can be used in the case of
 // gossip message to other members
-func (m *MessageEndpoint) Send(addr string, msg pb.Message) error {
+func (m *DefaultMessageEndpoint) Send(addr string, msg pb.Message) error {
 	d, err := proto.Marshal(&msg)
 	if err != nil {
 		return err
@@ -310,4 +309,12 @@ func (m *MessageEndpoint) Send(addr string, msg pb.Message) error {
 	}
 
 	return nil
+}
+
+func (m *DefaultMessageEndpoint) Shutdown() {
+	// close transport first
+	m.transport.Shutdown()
+
+	// then close message endpoint
+	m.quit <- struct{}{}
 }

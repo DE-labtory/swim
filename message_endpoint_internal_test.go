@@ -244,7 +244,7 @@ func TestMessageEndpoint_Listen_HaveCallback(t *testing.T) {
 	assert.NoError(t, err)
 
 	// ** add callback function with key "seq1" **
-	e.resHandler.addCallback("seq1", callback{
+	e.(*DefaultMessageEndpoint).resHandler.addCallback("seq1", callback{
 		fn: func(msg2 pb.Message) {
 			// message assertion
 			assert.Equal(t, msg2.Id, (*msg).Id)
@@ -295,7 +295,7 @@ func TestMessageEndpoint_processPacket(t *testing.T) {
 
 	// create packet to process
 	packet := createPacket("test.addr", data)
-	processed, err := e.processPacket(packet)
+	processed, err := e.(*DefaultMessageEndpoint).processPacket(packet)
 
 	assert.NoError(t, err)
 	assert.Equal(t, processed.Id, (*msg).Id)
@@ -343,7 +343,7 @@ func TestMessageEndpoint_handleMessage(t *testing.T) {
 	e, err := NewMessageEndpoint(mc, p, h, a)
 	assert.NoError(t, err)
 
-	err = e.handleMessage(*msg)
+	err = e.(*DefaultMessageEndpoint).handleMessage(*msg)
 	assert.NoError(t, err)
 }
 
@@ -373,7 +373,7 @@ func TestMessageEndpoint_handleMessage_InvalidMessage(t *testing.T) {
 	e, err := NewMessageEndpoint(mc, p, h, a)
 	assert.NoError(t, err)
 
-	err = e.handleMessage(*msg)
+	err = e.(*DefaultMessageEndpoint).handleMessage(*msg)
 	assert.Equal(t, err, ErrInvalidMessage)
 }
 
@@ -396,7 +396,7 @@ func TestMessageEndpoint_determineSendTimeout_timeout_provided(t *testing.T) {
 	e, err := NewMessageEndpoint(mc, p, h, a)
 	assert.NoError(t, err)
 
-	duration := e.determineSendTimeout(time.Second * 2)
+	duration := e.(*DefaultMessageEndpoint).determineSendTimeout(time.Second * 2)
 	assert.Equal(t, duration, time.Second*2)
 }
 
@@ -419,7 +419,7 @@ func TestMessageEndpoint_determineSendTimeout_timeout_not_provided(t *testing.T)
 	e, err := NewMessageEndpoint(mc, p, h, a)
 	assert.NoError(t, err)
 
-	duration := e.determineSendTimeout(time.Duration(0))
+	duration := e.(*DefaultMessageEndpoint).determineSendTimeout(time.Duration(0))
 
 	// default awareness score is 0 so sec * (0 + 1) = 1sec
 	assert.Equal(t, duration, time.Second)
@@ -471,7 +471,7 @@ func TestMessageEndpoint_SyncSend_MySelf(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, sentMsg.Id, (*msg).Id)
 	assert.Equal(t, getAckPayload(sentMsg), getAckPayload(*msg))
-	assert.Equal(t, e.awareness.GetHealthScore(), 1)
+	assert.Equal(t, e.(*DefaultMessageEndpoint).awareness.GetHealthScore(), 1)
 }
 
 func TestMessageEndpoint_SyncSend_TwoMembers(t *testing.T) {
@@ -558,7 +558,7 @@ func TestMessageEndpoint_SyncSend_TwoMembers(t *testing.T) {
 	assert.Equal(t, getAckPayload(receivedMsg), getAckPayload(*msg))
 
 	// sender's NSA score will decrease
-	assert.Equal(t, 1, sender.awareness.GetHealthScore())
+	assert.Equal(t, 1, sender.(*DefaultMessageEndpoint).awareness.GetHealthScore())
 }
 
 // SyncSend internal timeout test send message to receiver
@@ -627,7 +627,7 @@ func TestMessageEndpoint_SyncSend_When_Timeout(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, pb.Message{}, sentMsg)
 	// sender's NSA score will increase
-	assert.Equal(t, 1, e2.awareness.GetHealthScore())
+	assert.Equal(t, 1, e2.(*DefaultMessageEndpoint).awareness.GetHealthScore())
 
 	wg.Wait()
 }

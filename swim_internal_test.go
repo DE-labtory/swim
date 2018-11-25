@@ -291,7 +291,7 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	assert.Equal(t, resp.PiggyBack.Id, "pbk_id1")
 }
 
-func createMessageEndpoint(messageHandler MessageHandler, sendTimeout time.Duration, port int) *MessageEndpoint {
+func createMessageEndpoint(messageHandler MessageHandler, sendTimeout time.Duration, port int) MessageEndpoint {
 	mConfig := MessageEndpointConfig{
 		EncryptionEnabled:       false,
 		DefaultSendTimeout:      sendTimeout,

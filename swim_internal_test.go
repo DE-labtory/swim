@@ -93,7 +93,43 @@ func TestSWIM_ShutDown(t *testing.T) {
 }
 
 func TestSWIM_handlePbk(t *testing.T) {
+	piggyBack := &pb.PiggyBack{
+		Type:        pb.PiggyBack_Suspect,
+		Id:          "junksound",
+		Incarnation: 0,
+	}
 
+	pbkStore := MockPbkStore{}
+	pbkStore.PushFunc = func(pbk pb.PiggyBack) {
+		assert.Equal(t, pb.PiggyBack_Alive, pbk.Type)
+		assert.Equal(t, uint32(1), pbk.Incarnation)
+	}
+
+	swim := New(&Config{
+		K:             2,
+		T:             4000,
+		AckTimeOut:    1000,
+		MaxlocalCount: 1,
+		BindAddress:   "127.0.0.1",
+		BindPort:      3001,
+	},
+		&SuspicionConfig{},
+		MessageEndpointConfig{
+			CallbackCollectInterval: 1000,
+		},
+		&Awareness{},
+	)
+
+	swim.pbkStore = pbkStore
+
+	swim.host = &SelfInfo{
+		ID: MemberID{
+			ID: "junksound",
+		},
+		Incarnation: 0,
+	}
+
+	swim.handlePbk(piggyBack)
 }
 
 func TestSWIM_handlePing(t *testing.T) {
@@ -113,12 +149,14 @@ func TestSWIM_handlePing(t *testing.T) {
 
 	//mJ
 	swim := SWIM{}
+	host := &SelfInfo{}
 
 	mI := createMessageEndpoint(&mIMessageHandler, time.Second, 11140)
 	mJ := createMessageEndpoint(&swim, time.Second, 11141)
 
 	swim.messageEndpoint = mJ
 	swim.pbkStore = pbkStore
+	swim.host = host
 
 	go mI.Listen()
 	go mJ.Listen()
@@ -165,6 +203,7 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 	swim := SWIM{}
 	mIMessageHandler := MockMessageHandler{}
 	mJMessageHandler := MockMessageHandler{}
+	host := &SelfInfo{}
 
 	mK := createMessageEndpoint(&swim, time.Second, 11140)
 	mI := createMessageEndpoint(&mIMessageHandler, time.Second, 11141)
@@ -172,6 +211,7 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 
 	swim.messageEndpoint = mK
 	swim.pbkStore = pbkStore
+	swim.host = host
 
 	// ** m_k's handleIndirectPing is implicitly called when m_k received
 	// indirect-ping message from other member **
@@ -236,6 +276,7 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	swim := SWIM{}
 	mIMessageHandler := MockMessageHandler{}
 	mJMessageHandler := MockMessageHandler{}
+	host := &SelfInfo{}
 
 	mK := createMessageEndpoint(&swim, time.Second, 11140)
 	// source should have larger send timeout, because source should give mediator
@@ -245,6 +286,7 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 
 	swim.messageEndpoint = mK
 	swim.pbkStore = pbkStore
+	swim.host = host
 
 	// ** m_k's handleIndirectPing is implicitly called when m_k received
 	// indirect-ping message from other member **

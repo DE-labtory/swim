@@ -139,25 +139,24 @@ func TestNewMessageEndpoint(t *testing.T) {
 
 	// if CallbackCollectInterval not provided, then should return error
 	mc := MessageEndpointConfig{
-		EncryptionEnabled:  false,
-		DefaultSendTimeout: time.Second,
+		EncryptionEnabled: false,
+		SendTimeout:       time.Second,
 	}
 
 	h := MockMessageHandler{}
 
-	a := NewAwareness(8)
-	e, err := NewMessageEndpoint(mc, p, h, a)
+	e, err := NewMessageEndpoint(mc, p, h)
 	assert.Error(t, err, ErrCallbackCollectIntervalNotSpecified)
 	assert.Nil(t, e)
 
 	// if CallbackCollectInterval provided, then should return object successfully
 	mc2 := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
-	e2, err := NewMessageEndpoint(mc2, p, h, a)
+	e2, err := NewMessageEndpoint(mc2, p, h)
 	assert.NoError(t, err)
 	assert.NotNil(t, e2)
 }
@@ -179,7 +178,7 @@ func TestMessageEndpoint_Listen_NoCallback(t *testing.T) {
 
 	mc := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -196,8 +195,7 @@ func TestMessageEndpoint_Listen_NoCallback(t *testing.T) {
 		// after assertion done wait group to finish test
 		wg.Done()
 	}
-	a := NewAwareness(8)
-	e, err := NewMessageEndpoint(mc, p, h, a)
+	e, err := NewMessageEndpoint(mc, p, h)
 	assert.NoError(t, err)
 
 	defer func() {
@@ -231,7 +229,7 @@ func TestMessageEndpoint_Listen_HaveCallback(t *testing.T) {
 
 	mc := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -239,8 +237,7 @@ func TestMessageEndpoint_Listen_HaveCallback(t *testing.T) {
 	msg := getAckMessage("seq1", "payload1")
 
 	h := MockMessageHandler{}
-	a := NewAwareness(8)
-	e, err := NewMessageEndpoint(mc, p, h, a)
+	e, err := NewMessageEndpoint(mc, p, h)
 	assert.NoError(t, err)
 
 	// ** add callback function with key "seq1" **
@@ -280,13 +277,12 @@ func TestMessageEndpoint_processPacket(t *testing.T) {
 
 	mc := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
 	h := MockMessageHandler{}
-	a := NewAwareness(8)
-	e, err := NewMessageEndpoint(mc, p, h, a)
+	e, err := NewMessageEndpoint(mc, p, h)
 	assert.NoError(t, err)
 
 	// prepare message to send
@@ -327,7 +323,7 @@ func TestMessageEndpoint_handleMessage(t *testing.T) {
 
 	mc := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -339,8 +335,7 @@ func TestMessageEndpoint_handleMessage(t *testing.T) {
 		assert.Equal(t, msg2.Id, (*msg).Id)
 		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
 	}
-	a := NewAwareness(8)
-	e, err := NewMessageEndpoint(mc, p, h, a)
+	e, err := NewMessageEndpoint(mc, p, h)
 	assert.NoError(t, err)
 
 	err = e.(*DefaultMessageEndpoint).handleMessage(*msg)
@@ -357,7 +352,7 @@ func TestMessageEndpoint_handleMessage_InvalidMessage(t *testing.T) {
 
 	mc := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -369,60 +364,11 @@ func TestMessageEndpoint_handleMessage_InvalidMessage(t *testing.T) {
 		assert.Equal(t, msg2.Id, (*msg).Id)
 		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
 	}
-	a := NewAwareness(8)
-	e, err := NewMessageEndpoint(mc, p, h, a)
+	e, err := NewMessageEndpoint(mc, p, h)
 	assert.NoError(t, err)
 
 	err = e.(*DefaultMessageEndpoint).handleMessage(*msg)
 	assert.Equal(t, err, ErrInvalidMessage)
-}
-
-func TestMessageEndpoint_determineSendTimeout_timeout_provided(t *testing.T) {
-	tc := PacketTransportConfig{
-		BindAddress: "127.0.0.1",
-		BindPort:    11116,
-	}
-
-	p, _ := NewPacketTransport(&tc)
-
-	mc := MessageEndpointConfig{
-		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
-		CallbackCollectInterval: time.Hour,
-	}
-
-	h := MockMessageHandler{}
-	a := NewAwareness(8)
-	e, err := NewMessageEndpoint(mc, p, h, a)
-	assert.NoError(t, err)
-
-	duration := e.(*DefaultMessageEndpoint).determineSendTimeout(time.Second * 2)
-	assert.Equal(t, duration, time.Second*2)
-}
-
-func TestMessageEndpoint_determineSendTimeout_timeout_not_provided(t *testing.T) {
-	tc := PacketTransportConfig{
-		BindAddress: "127.0.0.1",
-		BindPort:    11117,
-	}
-
-	p, _ := NewPacketTransport(&tc)
-
-	mc := MessageEndpointConfig{
-		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
-		CallbackCollectInterval: time.Hour,
-	}
-
-	h := MockMessageHandler{}
-	a := NewAwareness(8)
-	e, err := NewMessageEndpoint(mc, p, h, a)
-	assert.NoError(t, err)
-
-	duration := e.(*DefaultMessageEndpoint).determineSendTimeout(time.Duration(0))
-
-	// default awareness score is 0 so sec * (0 + 1) = 1sec
-	assert.Equal(t, duration, time.Second)
 }
 
 // SyncSend internal test send message to myself
@@ -441,7 +387,7 @@ func TestMessageEndpoint_SyncSend_MySelf(t *testing.T) {
 
 	mc := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -456,7 +402,7 @@ func TestMessageEndpoint_SyncSend_MySelf(t *testing.T) {
 	// decrease nsa point
 	a.ApplyDelta(2)
 
-	e, err := NewMessageEndpoint(mc, p, h, a)
+	e, err := NewMessageEndpoint(mc, p, h)
 	assert.NoError(t, err)
 
 	defer func() {
@@ -466,12 +412,11 @@ func TestMessageEndpoint_SyncSend_MySelf(t *testing.T) {
 	// start to listen
 	go e.Listen()
 
-	sentMsg, err := e.SyncSend("127.0.0.1:11118", *msg, time.Second*2)
+	sentMsg, err := e.SyncSend("127.0.0.1:11118", *msg)
 
 	assert.NoError(t, err)
 	assert.Equal(t, sentMsg.Id, (*msg).Id)
 	assert.Equal(t, getAckPayload(sentMsg), getAckPayload(*msg))
-	assert.Equal(t, e.(*DefaultMessageEndpoint).awareness.GetHealthScore(), 1)
 }
 
 func TestMessageEndpoint_SyncSend_TwoMembers(t *testing.T) {
@@ -491,12 +436,12 @@ func TestMessageEndpoint_SyncSend_TwoMembers(t *testing.T) {
 
 	receiverConfig := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 	senderConfig := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second * 2,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -505,22 +450,15 @@ func TestMessageEndpoint_SyncSend_TwoMembers(t *testing.T) {
 
 	h := MockMessageHandler{}
 	h.handleFunc = func(msg pb.Message) {}
-	a := NewAwareness(8)
 	// receiver
-	receiver, err := NewMessageEndpoint(receiverConfig, p, h, a)
+	receiver, err := NewMessageEndpoint(receiverConfig, p, h)
 	assert.NoError(t, err)
 
 	h2 := MockMessageHandler{}
 	h2.handleFunc = func(msg pb.Message) {}
-	a2 := NewAwareness(8)
-
-	// increase nsa score in advance to test decreasing nsa score
-	// in the case when member probe successfully, self node actually
-	// decrease nsa point
-	a2.ApplyDelta(2)
 
 	// sender
-	sender, err := NewMessageEndpoint(senderConfig, p2, h2, a2)
+	sender, err := NewMessageEndpoint(senderConfig, p2, h2)
 
 	// start to listen
 	go receiver.Listen()
@@ -551,14 +489,11 @@ func TestMessageEndpoint_SyncSend_TwoMembers(t *testing.T) {
 
 	// sender sends message to receiver, and receiver send back a ack message
 	// so sender's SyncSend return received message. as a result decrease NSA score w/o error
-	receivedMsg, err := sender.SyncSend("127.0.0.1:11130", *msg, time.Second*2)
+	receivedMsg, err := sender.SyncSend("127.0.0.1:11130", *msg)
 
 	assert.NoError(t, err)
 	assert.Equal(t, receivedMsg.Id, (*msg).Id)
 	assert.Equal(t, getAckPayload(receivedMsg), getAckPayload(*msg))
-
-	// sender's NSA score will decrease
-	assert.Equal(t, 1, sender.(*DefaultMessageEndpoint).awareness.GetHealthScore())
 }
 
 // SyncSend internal timeout test send message to receiver
@@ -585,12 +520,12 @@ func TestMessageEndpoint_SyncSend_When_Timeout(t *testing.T) {
 
 	mc := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 	mc2 := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -603,31 +538,25 @@ func TestMessageEndpoint_SyncSend_When_Timeout(t *testing.T) {
 		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
 		wg.Done()
 	}
-	a := NewAwareness(8)
 	// receiver
-	e, err := NewMessageEndpoint(mc, p, h, a)
+	e, err := NewMessageEndpoint(mc, p, h)
 	assert.NoError(t, err)
 
 	// start to listen
 	go e.Listen()
 
 	h2 := MockMessageHandler{}
-	a2 := NewAwareness(8)
 	// sender
-	e2, err := NewMessageEndpoint(mc2, p2, h2, a2)
+	e2, err := NewMessageEndpoint(mc2, p2, h2)
 
 	defer func() {
 		e.Shutdown()
 	}()
 
-	// sender sends message to receiver, but receiver would never send back any message
-	// so sender's SyncSend timer will expire. as a result increase NSA score with error
-	sentMsg, err := e2.SyncSend("127.0.0.1:11119", *msg, time.Second*2)
+	sentMsg, err := e2.SyncSend("127.0.0.1:11119", *msg)
 
 	assert.Error(t, err)
 	assert.Equal(t, pb.Message{}, sentMsg)
-	// sender's NSA score will increase
-	assert.Equal(t, 1, e2.(*DefaultMessageEndpoint).awareness.GetHealthScore())
 
 	wg.Wait()
 }
@@ -650,7 +579,7 @@ func TestMessageEndpoint_Send(t *testing.T) {
 
 	mc := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      time.Second,
+		SendTimeout:             time.Second,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -664,8 +593,7 @@ func TestMessageEndpoint_Send(t *testing.T) {
 		assert.Equal(t, getAckPayload(msg2), getAckPayload(*msg))
 		wg.Done()
 	}
-	a := NewAwareness(8)
-	e, err := NewMessageEndpoint(mc, p, h, a)
+	e, err := NewMessageEndpoint(mc, p, h)
 	assert.NoError(t, err)
 
 	defer func() {

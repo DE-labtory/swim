@@ -51,6 +51,7 @@ func TestSWIM_ShutDown(t *testing.T) {
 		T:             4000,
 		AckTimeOut:    1000,
 		MaxlocalCount: 1,
+		MaxNsaCounter: 8,
 		BindAddress:   "127.0.0.1",
 		BindPort:      3000,
 	},
@@ -58,7 +59,6 @@ func TestSWIM_ShutDown(t *testing.T) {
 		MessageEndpointConfig{
 			CallbackCollectInterval: 1000,
 		},
-		&Awareness{},
 	)
 	m := NewMemberMap(&SuspicionConfig{})
 	m.Alive(AliveMessage{
@@ -138,7 +138,7 @@ func TestSWIM_handlePing(t *testing.T) {
 		mJ.Shutdown()
 	}()
 
-	resp, err := mI.SyncSend("127.0.0.1:11141", ping, DefaultSendTimeout)
+	resp, err := mI.SyncSend("127.0.0.1:11141", ping)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Ack))
 	assert.Equal(t, resp.Id, id)
@@ -209,7 +209,7 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 		mJ.Send("127.0.0.1:11140", ack)
 	}
 
-	resp, err := mI.SyncSend("127.0.0.1:11140", ind, DefaultSendTimeout)
+	resp, err := mI.SyncSend("127.0.0.1:11140", ind)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Ack))
 	assert.Equal(t, resp.Id, id)
@@ -282,7 +282,7 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 		// DO NOT ANYTHING: do not response back to m
 	}
 
-	resp, err := mI.SyncSend("127.0.0.1:11140", ind, DefaultSendTimeout)
+	resp, err := mI.SyncSend("127.0.0.1:11140", ind)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Nack))
 	assert.Equal(t, resp.Id, id)
@@ -294,7 +294,7 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 func createMessageEndpoint(messageHandler MessageHandler, sendTimeout time.Duration, port int) MessageEndpoint {
 	mConfig := MessageEndpointConfig{
 		EncryptionEnabled:       false,
-		DefaultSendTimeout:      sendTimeout,
+		SendTimeout:             sendTimeout,
 		CallbackCollectInterval: time.Hour,
 	}
 
@@ -305,9 +305,7 @@ func createMessageEndpoint(messageHandler MessageHandler, sendTimeout time.Durat
 
 	transport, _ := NewPacketTransport(tConfig)
 
-	awareness := NewAwareness(8)
-
-	m, _ := NewMessageEndpoint(mConfig, transport, messageHandler, awareness)
+	m, _ := NewMessageEndpoint(mConfig, transport, messageHandler)
 
 	return m
 }

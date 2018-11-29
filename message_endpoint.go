@@ -114,16 +114,14 @@ func (r *responseHandler) collectGarbageCallback() {
 
 type MessageEndpoint interface {
 	Listen()
-	SyncSend(addr string, msg pb.Message, interval time.Duration) (pb.Message, error)
+	SyncSend(addr string, msg pb.Message) (pb.Message, error)
 	Send(addr string, msg pb.Message) error
 	Shutdown()
 }
 
-const DefaultSendTimeout = time.Duration(0)
-
 type MessageEndpointConfig struct {
-	EncryptionEnabled  bool
-	DefaultSendTimeout time.Duration
+	EncryptionEnabled bool
+	SendTimeout       time.Duration
 
 	// callbackCollect Interval indicate time interval to clean up old
 	// callback function
@@ -136,12 +134,11 @@ type DefaultMessageEndpoint struct {
 	config         MessageEndpointConfig
 	transport      UDPTransport
 	messageHandler MessageHandler
-	awareness      *Awareness
 	resHandler     *responseHandler
 	quit           chan struct{}
 }
 
-func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, messageHandler MessageHandler, awareness *Awareness) (MessageEndpoint, error) {
+func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, messageHandler MessageHandler) (MessageEndpoint, error) {
 	if config.CallbackCollectInterval == time.Duration(0) {
 		return nil, ErrCallbackCollectIntervalNotSpecified
 	}
@@ -150,7 +147,6 @@ func NewMessageEndpoint(config MessageEndpointConfig, transport UDPTransport, me
 		config:         config,
 		transport:      transport,
 		messageHandler: messageHandler,
-		awareness:      awareness,
 		resHandler:     newResponseHandler(config.CallbackCollectInterval),
 		quit:           make(chan struct{}),
 	}, nil
@@ -228,27 +224,13 @@ func (m *DefaultMessageEndpoint) handleMessage(msg pb.Message) error {
 
 }
 
-// determineSendTimeout if @timeout is given, then use this value as timeout value
-// otherwise calculate timeout value based on the awareness
-func (m *DefaultMessageEndpoint) determineSendTimeout(timeout time.Duration) time.Duration {
-	if timeout != DefaultSendTimeout {
-		return timeout
-	}
-
-	return m.awareness.ScaleTimeout(m.config.DefaultSendTimeout)
-}
-
 // SyncSend synchronously send message to member of addr, waits until response come back,
 // whether it is timeout or send failed, SyncSend can be used in the case of pinging to other members.
 // if @timeout is provided then set send timeout to given parameters, if not then calculate
 // timeout based on the its awareness
-func (m *DefaultMessageEndpoint) SyncSend(addr string, msg pb.Message, interval time.Duration) (pb.Message, error) {
+func (m *DefaultMessageEndpoint) SyncSend(addr string, msg pb.Message) (pb.Message, error) {
 	onSucc := make(chan pb.Message)
 	defer close(onSucc)
-
-	// if @interval provided then, use parameters, if not, timeout determine by
-	// its awareness score
-	timeout := m.determineSendTimeout(interval)
 
 	d, err := proto.Marshal(&msg)
 	if err != nil {
@@ -272,20 +254,12 @@ func (m *DefaultMessageEndpoint) SyncSend(addr string, msg pb.Message, interval 
 	}
 
 	// start timer
-	T := time.NewTimer(timeout)
+	T := time.NewTimer(m.config.SendTimeout)
 
 	select {
 	case msg := <-onSucc:
-		// When message receive from @onSucc channel, that means we have successfully probe
-		// target member. In this case we decrease NSA(Node Self-Awareness) by 1
-		nsaDelta := -1
-		m.awareness.ApplyDelta(nsaDelta)
 		return msg, nil
 	case <-T.C:
-		// When response not come back in time, this means that we somehow failed probe target
-		// node, In this case we increase NSA by 1
-		nsaDelta := 1
-		m.awareness.ApplyDelta(nsaDelta)
 		return pb.Message{}, ErrSendTimeout
 	}
 

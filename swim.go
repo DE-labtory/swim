@@ -30,6 +30,9 @@ type Config struct {
 	// The maximum number of times the same piggyback data can be queried
 	MaxlocalCount int
 
+	// The maximum number of node-self-awareness counter
+	MaxNsaCounter int
+
 	// T is the the period of the probe
 	T int
 
@@ -52,6 +55,9 @@ type SWIM struct {
 	// Currently connected memberList
 	memberMap *MemberMap
 
+	// Awareness manages health of the local node.
+	awareness *Awareness
+
 	// messageEndpoint work both as message transmitter and message receiver
 	messageEndpoint MessageEndpoint
 
@@ -62,24 +68,25 @@ type SWIM struct {
 	pbkStore PBkStore
 }
 
-func New(config *Config, suspicionConfig *SuspicionConfig, messageEndpointConfig MessageEndpointConfig, awareness *Awareness) *SWIM {
+func New(config *Config, suspicionConfig *SuspicionConfig, messageEndpointConfig MessageEndpointConfig) *SWIM {
 	if config.T < config.AckTimeOut {
 		iLogger.Panic(nil, "T time must be longer than ack time-out")
 	}
 
 	swim := SWIM{
 		config:    config,
+		awareness: NewAwareness(config.MaxNsaCounter),
 		memberMap: NewMemberMap(suspicionConfig),
 		quitFD:    make(chan struct{}),
 	}
 
-	messageEndpoint := messageEndpointFactory(config, messageEndpointConfig, &swim, awareness)
+	messageEndpoint := messageEndpointFactory(config, messageEndpointConfig, &swim)
 	swim.messageEndpoint = messageEndpoint
 
 	return &swim
 }
 
-func messageEndpointFactory(config *Config, messageEndpointConfig MessageEndpointConfig, messageHandler MessageHandler, awareness *Awareness) MessageEndpoint {
+func messageEndpointFactory(config *Config, messageEndpointConfig MessageEndpointConfig, messageHandler MessageHandler) MessageEndpoint {
 	packetTransportConfig := PacketTransportConfig{
 		BindAddress: config.BindAddress,
 		BindPort:    config.BindPort,
@@ -90,7 +97,7 @@ func messageEndpointFactory(config *Config, messageEndpointConfig MessageEndpoin
 		iLogger.Panic(nil, err.Error())
 	}
 
-	messageEndpoint, err := NewMessageEndpoint(messageEndpointConfig, packetTransport, messageHandler, awareness)
+	messageEndpoint, err := NewMessageEndpoint(messageEndpointConfig, packetTransport, messageHandler)
 	if err != nil {
 		iLogger.Panic(nil, err.Error())
 	}
@@ -296,7 +303,7 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	// if successfully received ack message from target, then send back ack message
 	// to source member
 
-	if _, err := s.messageEndpoint.SyncSend(targetAddr, ping, DefaultSendTimeout); err != nil {
+	if _, err := s.messageEndpoint.SyncSend(targetAddr, ping); err != nil {
 		nack := createNackMessage(id, &pbk)
 		if err := s.messageEndpoint.Send(srcAddr, nack); err != nil {
 			iLogger.Error(nil, err.Error())

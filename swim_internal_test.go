@@ -81,7 +81,7 @@ func TestSWIM_ShutDown(t *testing.T) {
 
 	// Check whether the startFailureDetector ends or not
 	go func() {
-		s.startFailureDetector()
+		s.Start()
 		wg.Done()
 	}()
 

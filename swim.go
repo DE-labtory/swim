@@ -113,7 +113,8 @@ func messageEndpointFactory(config *Config, messageEndpointConfig MessageEndpoin
 
 // Start SWIM protocol.
 func (s *SWIM) Start() {
-
+	go s.messageEndpoint.Listen()
+	s.startFailureDetector()
 }
 
 // Dial to the all peerAddresses and exchange memberList.
@@ -128,6 +129,7 @@ func (s *SWIM) Gossip(msg []byte) {
 
 // Shutdown the running swim.
 func (s *SWIM) ShutDown() {
+	s.messageEndpoint.Shutdown()
 	s.quitFD <- struct{}{}
 }
 

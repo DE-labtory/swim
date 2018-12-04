@@ -905,11 +905,7 @@ func TestSWIM_indirectPing_When_Response_Success(t *testing.T) {
 	swim.mbrStatsMsgStore = pbkStore
 	swim.messageEndpoint = messageEndpoint
 
-	callback := func(err error, msg pb.Message) {
-		assert.NoError(t, err)
-		assert.Equal(t, msg, ack)
-	}
-	swim.indirectPing(*mKMember, *mJMember, callback)
+	swim.indirectPing(*mKMember, *mJMember)
 }
 
 func TestSWIM_indirectPing_When_Response_Failed(t *testing.T) {
@@ -976,11 +972,7 @@ func TestSWIM_indirectPing_When_Response_Failed(t *testing.T) {
 	swim.mbrStatsMsgStore = pbkStore
 	swim.messageEndpoint = messageEndpoint
 
-	callback := func(err error, msg pb.Message) {
-		assert.Error(t, err, ErrSendTimeout)
-		assert.Equal(t, msg, pb.Message{})
-	}
-	swim.indirectPing(*mKMember, *mJMember, callback)
+	swim.indirectPing(*mKMember, *mJMember)
 }
 
 func TestSWIM_indirectPing_When_One_Of_Other_Member_Sent_Ack(t *testing.T) {
@@ -1062,10 +1054,7 @@ func TestSWIM_indirectPing_When_One_Of_Other_Member_Sent_Ack(t *testing.T) {
 	swim.mbrStatsMsgStore = pbkStore
 	swim.messageEndpoint = messageEndpoint
 
-	callback := func(err error, msg pb.Message) {
-
-	}
-	swim.indirectPing(*member, *target, callback)
+	swim.indirectPing(*member, *target)
 }
 
 func TestSWIM_ping_When_Response_Success(t *testing.T) {
@@ -1465,9 +1454,10 @@ func TestSWIM_indirectProbe_When_Some_Member_Sent_Nack_Message(t *testing.T) {
 	// half of the members will send to m_i ACK message
 	i := 1
 	mJMessageHandler.handleFunc = func(msg pb.Message) {
-		if i%2 == 0 {
+		if i == 1 {
 			ack := pb.Message{Id: msg.Id, Payload: &pb.Message_Ack{Ack: &pb.Ack{}}, PiggyBack: &pb.PiggyBack{}}
-			mJMessageEndpoint.Send(msg.Address, ack)
+			err := mJMessageEndpoint.Send(msg.Address, ack)
+			assert.NoError(t, err)
 		}
 		i++
 	}
@@ -1544,7 +1534,8 @@ func TestSWIM_probe_When_Member_Is_Dead(t *testing.T) {
 		ID:     MemberID{ID: "111"},
 		Status: Dead,
 	}
-	swim.probe(member)
+	T := time.NewTimer(time.Second)
+	swim.probe(member, T)
 }
 
 func TestSWIM_probe_When_Target_Respond_To_Ping(t *testing.T) {
@@ -1594,7 +1585,7 @@ func TestSWIM_probe_When_Target_Respond_To_Ping(t *testing.T) {
 	// setup SWIM's message endpoint
 	tc := PacketTransportConfig{
 		BindAddress: "127.0.0.1",
-		BindPort:    11162,
+		BindPort:    13162,
 	}
 	p, _ := NewPacketTransport(&tc)
 
@@ -1610,7 +1601,8 @@ func TestSWIM_probe_When_Target_Respond_To_Ping(t *testing.T) {
 	go mIMessageEndpoint.Listen()
 	defer mIMessageEndpoint.Shutdown()
 
-	swim.probe(mJMember)
+	T := time.NewTimer(time.Second * 5)
+	swim.probe(mJMember, T)
 
 	assert.Equal(t, swim.awareness.score, 1)
 }
@@ -1629,16 +1621,16 @@ func TestSWIM_probe_When_Target_Respond_To_Ping(t *testing.T) {
 //   7. M_I successfully finish indirect-probing
 //
 func TestSWIM_probe_When_Target_Respond_To_Indirect_Ping(t *testing.T) {
-	mJAddress := "127.0.0.1:11161"
-	mIAddress := "127.0.0.1:11162"
-	mK1Address := "127.0.0.1:11163"
-	mK2Address := "127.0.0.1:11164"
+	mJAddress := "127.0.0.1:13161"
+	mIAddress := "127.0.0.1:13162"
+	mK1Address := "127.0.0.1:13163"
+	mK2Address := "127.0.0.1:13164"
 
 	//
 	// setup M_J message endpoint, SWIM
 	//
 	mJMessageHandler := &MockMessageHandler{}
-	mJMessageEndpoint := createMessageEndpoint(t, mJMessageHandler, time.Second, 11161)
+	mJMessageEndpoint := createMessageEndpoint(t, mJMessageHandler, time.Second, 13161)
 
 	// only ignore first message
 	i := 0
@@ -1661,7 +1653,7 @@ func TestSWIM_probe_When_Target_Respond_To_Indirect_Ping(t *testing.T) {
 	//
 	config := &Config{
 		BindAddress: "127.0.0.1",
-		BindPort:    11162,
+		BindPort:    13162,
 		K:           2,
 		T:           5000,
 	}
@@ -1674,11 +1666,11 @@ func TestSWIM_probe_When_Target_Respond_To_Indirect_Ping(t *testing.T) {
 	mI := &Member{
 		ID:   MemberID{ID: "mI"},
 		Addr: net.ParseIP("127.0.0.1"),
-		Port: 11162,
+		Port: 13162,
 	}
 
-	m1Member := &Member{ID: MemberID{ID: "m1"}, Addr: net.ParseIP("127.0.0.1"), Port: 11163, Status: Alive}
-	m2Member := &Member{ID: MemberID{ID: "m2"}, Addr: net.ParseIP("127.0.0.1"), Port: 11164, Status: Alive}
+	m1Member := &Member{ID: MemberID{ID: "m1"}, Addr: net.ParseIP("127.0.0.1"), Port: 13163, Status: Alive}
+	m2Member := &Member{ID: MemberID{ID: "m2"}, Addr: net.ParseIP("127.0.0.1"), Port: 13164, Status: Alive}
 
 	mm := NewMemberMap(&SuspicionConfig{})
 	mm.members[m1Member.ID] = m1Member
@@ -1717,12 +1709,12 @@ func TestSWIM_probe_When_Target_Respond_To_Indirect_Ping(t *testing.T) {
 	// setup M_K_1 message endpoint
 	//
 	mk1MessageHandler := &MockMessageHandler{}
-	mk1MessageEndpoint := createMessageEndpoint(t, mk1MessageHandler, time.Second, 11163)
+	mk1MessageEndpoint := createMessageEndpoint(t, mk1MessageHandler, time.Second, 13163)
 
 	mk1MessageHandler.handleFunc = func(msg pb.Message) {
 		// test whether received message type is indirect-ping
-		assert.Equal(t, msg.Payload.(*pb.Message_IndirectPing).IndirectPing, &pb.IndirectPing{Target: "127.0.0.1:11161"})
-		assert.Equal(t, msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target, "127.0.0.1:11161")
+		assert.Equal(t, msg.Payload.(*pb.Message_IndirectPing).IndirectPing, &pb.IndirectPing{Target: "127.0.0.1:13161"})
+		assert.Equal(t, msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target, "127.0.0.1:13161")
 		assert.Equal(t, msg.Address, mIAddress)
 
 		ping := createPingMessage(mK1Address, &pb.MbrStatsMsg{})
@@ -1730,6 +1722,7 @@ func TestSWIM_probe_When_Target_Respond_To_Indirect_Ping(t *testing.T) {
 		mk1MessageEndpoint.SyncSend(mJAddress, ping)
 		ack := createAckMessage(msg.Id, &pb.MbrStatsMsg{})
 		// send back to mi
+		time.Sleep(time.Second)
 		mk1MessageEndpoint.Send(mIAddress, ack)
 		return
 	}
@@ -1738,12 +1731,12 @@ func TestSWIM_probe_When_Target_Respond_To_Indirect_Ping(t *testing.T) {
 	// setup M_K_2 message endpoint,
 	//
 	mk2MessageHandler := &MockMessageHandler{}
-	mk2MessageEndpoint := createMessageEndpoint(t, mk2MessageHandler, time.Second, 11164)
+	mk2MessageEndpoint := createMessageEndpoint(t, mk2MessageHandler, time.Second, 13164)
 
 	mk2MessageHandler.handleFunc = func(msg pb.Message) {
 		// test whether received message type is indirect-ping
-		assert.Equal(t, msg.Payload.(*pb.Message_IndirectPing).IndirectPing, &pb.IndirectPing{Target: "127.0.0.1:11161"})
-		assert.Equal(t, msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target, "127.0.0.1:11161")
+		assert.Equal(t, msg.Payload.(*pb.Message_IndirectPing).IndirectPing, &pb.IndirectPing{Target: "127.0.0.1:13161"})
+		assert.Equal(t, msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target, "127.0.0.1:13161")
 		assert.Equal(t, msg.Address, mIAddress)
 
 		ping := createPingMessage(mK2Address, &pb.MbrStatsMsg{})
@@ -1766,8 +1759,9 @@ func TestSWIM_probe_When_Target_Respond_To_Indirect_Ping(t *testing.T) {
 		mk2MessageEndpoint.Shutdown()
 	}()
 
-	mJMember := Member{ID: MemberID{ID: "mj"}, Addr: net.ParseIP("127.0.0.1"), Port: 11161, Status: Alive}
-	swim.probe(mJMember)
+	mJMember := Member{ID: MemberID{ID: "mj"}, Addr: net.ParseIP("127.0.0.1"), Port: 13161, Status: Alive}
+	T := time.NewTimer(time.Second * 5)
+	swim.probe(mJMember, T)
 
 	assert.Equal(t, swim.awareness.score, 1)
 }
@@ -1903,6 +1897,7 @@ func TestSWIM_probe_When_Target_Not_Respond_To_Indirect_Ping(t *testing.T) {
 		assert.Error(t, err, ErrSendTimeout)
 
 		nack := createNackMessage(msg.Id, &pb.MbrStatsMsg{})
+
 		// send back to mi
 		mk2MessageEndpoint.Send(mIAddress, nack)
 		return
@@ -1920,10 +1915,160 @@ func TestSWIM_probe_When_Target_Not_Respond_To_Indirect_Ping(t *testing.T) {
 	}()
 
 	mJMember := Member{ID: MemberID{ID: "mj"}, Addr: net.ParseIP("127.0.0.1"), Port: 11161, Status: Alive}
-
-	swim.probe(mJMember)
+	T := time.NewTimer(time.Second * 5)
+	swim.probe(mJMember, T)
 
 	assert.Equal(t, swim.awareness.score, 3)
+}
+
+func TestSWIM_startFailureDetector_When_TimedOut(t *testing.T) {
+	// setup M_J member
+	mJMember := Member{ID: MemberID{ID: "mj"}, Addr: net.ParseIP("127.0.0.1"), Port: 11161, Status: Alive}
+	mJMessageHandler := &MockMessageHandler{}
+
+	mJMessageEndpoint := createMessageEndpoint(t, mJMessageHandler, time.Second, 11161)
+	mJMessageHandler.handleFunc = func(msg pb.Message) {
+		ack := pb.Message{Id: msg.Id, Payload: &pb.Message_Ack{Ack: &pb.Ack{}}, PiggyBack: &pb.PiggyBack{}}
+
+		time.Sleep(time.Second * 1)
+
+		mJMessageEndpoint.Send("127.0.0.1:11162", ack)
+	}
+	go mJMessageEndpoint.Listen()
+	defer mJMessageEndpoint.Shutdown()
+
+	// setup M_I
+	config := &Config{
+		BindAddress: "127.0.0.1",
+		BindPort:    11162,
+		K:           2,
+		T:           2000,
+	}
+
+	pbkStore := &MockMbrStatsMsgStore{}
+	pbkStore.GetFunc = func() (pb.MbrStatsMsg, error) {
+		return pb.MbrStatsMsg{}, nil
+	}
+
+	mI := &Member{
+		ID:   MemberID{ID: "mI"},
+		Addr: net.ParseIP("127.0.0.1"),
+		Port: 11162,
+	}
+
+	mm := NewMemberMap(&SuspicionConfig{})
+	mm.members[mJMember.ID] = &mJMember
+
+	awareness := NewAwareness(8)
+	awareness.ApplyDelta(2)
+
+	swim := &SWIM{}
+	swim.member = mI
+	swim.awareness = awareness
+	swim.config = config
+	swim.mbrStatsMsgStore = pbkStore
+	swim.memberMap = mm
+
+	// setup SWIM's message endpoint
+	tc := PacketTransportConfig{
+		BindAddress: "127.0.0.1",
+		BindPort:    11162,
+	}
+	p, _ := NewPacketTransport(&tc)
+
+	meConfig := MessageEndpointConfig{
+		EncryptionEnabled:       false,
+		SendTimeout:             time.Second * 10,
+		CallbackCollectInterval: time.Hour,
+	}
+	mIMessageEndpoint, _ := NewMessageEndpoint(meConfig, p, swim)
+
+	swim.messageEndpoint = mIMessageEndpoint
+
+	go mIMessageEndpoint.Listen()
+	defer mIMessageEndpoint.Shutdown()
+
+	T := time.NewTimer(time.Second * 5)
+
+	go swim.startFailureDetector()
+
+	select {
+	case <-T.C:
+	}
+}
+
+func TestSWIM_startFailureDetector_When_Success_Probe(t *testing.T) {
+	// setup M_J member
+	mJMember := Member{ID: MemberID{ID: "mj"}, Addr: net.ParseIP("127.0.0.1"), Port: 11161, Status: Alive}
+	mJMessageHandler := &MockMessageHandler{}
+
+	mJMessageEndpoint := createMessageEndpoint(t, mJMessageHandler, time.Second, 11161)
+	mJMessageHandler.handleFunc = func(msg pb.Message) {
+		ack := pb.Message{Id: msg.Id, Payload: &pb.Message_Ack{Ack: &pb.Ack{}}, PiggyBack: &pb.PiggyBack{}}
+
+		mJMessageEndpoint.Send("127.0.0.1:11162", ack)
+	}
+	go mJMessageEndpoint.Listen()
+	defer mJMessageEndpoint.Shutdown()
+
+	// setup M_I
+	config := &Config{
+		BindAddress: "127.0.0.1",
+		BindPort:    11162,
+		K:           2,
+		T:           3000,
+	}
+
+	pbkStore := &MockMbrStatsMsgStore{}
+	pbkStore.GetFunc = func() (pb.MbrStatsMsg, error) {
+		return pb.MbrStatsMsg{}, nil
+	}
+
+	mI := &Member{
+		ID:   MemberID{ID: "mI"},
+		Addr: net.ParseIP("127.0.0.1"),
+		Port: 11162,
+	}
+
+	mm := NewMemberMap(&SuspicionConfig{})
+	mm.members[mJMember.ID] = &mJMember
+
+	awareness := NewAwareness(8)
+	awareness.ApplyDelta(2)
+
+	swim := &SWIM{}
+	swim.member = mI
+	swim.awareness = awareness
+	swim.config = config
+	swim.mbrStatsMsgStore = pbkStore
+	swim.memberMap = mm
+
+	// setup SWIM's message endpoint
+	tc := PacketTransportConfig{
+		BindAddress: "127.0.0.1",
+		BindPort:    11162,
+	}
+	p, _ := NewPacketTransport(&tc)
+
+	meConfig := MessageEndpointConfig{
+		EncryptionEnabled:       false,
+		SendTimeout:             time.Second * 10,
+		CallbackCollectInterval: time.Hour,
+	}
+	mIMessageEndpoint, _ := NewMessageEndpoint(meConfig, p, swim)
+
+	swim.messageEndpoint = mIMessageEndpoint
+
+	go mIMessageEndpoint.Listen()
+	defer mIMessageEndpoint.Shutdown()
+
+	T := time.NewTimer(time.Second * 5)
+
+	go swim.startFailureDetector()
+
+	select {
+	case <-T.C:
+	}
 }
 
 func createMessageEndpoint(t *testing.T, messageHandler MessageHandler, sendTimeout time.Duration, port int) MessageEndpoint {

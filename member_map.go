@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DE-labtory/swim/pb"
 	"github.com/it-chain/iLogger"
 )
 
@@ -48,6 +49,10 @@ const (
 	Dead
 )
 
+func (s Status) toInt() int32 {
+	return int32(s)
+}
+
 type SuspicionConfig struct {
 	// k is the maximum number of independent confirmation's we'd like to see
 	// this value is for making timer to drive @min value
@@ -62,6 +67,12 @@ type SuspicionConfig struct {
 
 type MemberID struct {
 	ID string
+}
+
+func NewMemberID(s string) MemberID {
+	return MemberID{
+		ID: s,
+	}
 }
 
 // Struct of Member
@@ -110,6 +121,10 @@ func (m *Member) Address() string {
 // Get
 func (m *Member) GetID() MemberID {
 	return m.ID
+}
+
+func (m *Member) GetIDString() string {
+	return m.ID.ID
 }
 
 type MemberMap struct {
@@ -329,4 +344,7 @@ func (m *MemberMap) Reset() {
 			delete(m.members, k)
 		}
 	}
+}
+func (memberMap *MemberMap) Merge(membership *pb.Message_Membership) {
+
 }

@@ -20,6 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"errors"
+
 	"github.com/DE-labtory/swim/pb"
 	"github.com/it-chain/iLogger"
 	"github.com/rs/xid"
@@ -126,7 +128,52 @@ func (s *SWIM) Join(peerAddresses []string) error {
 }
 
 func (s *SWIM) exchangeMembership(address string) error {
-	//s.messageEndpoint.SyncSend()
+
+	// Create membership message
+	membership := &pb.Membership{
+		Members: make([]*pb.Member, 0),
+	}
+	for _, m := range s.memberMap.GetMembers() {
+		membership.Members = append(membership.Members, &pb.Member{
+			Incarnation: m.Incarnation,
+			Id:          m.GetIDString(),
+			Type:        pb.Member_Type(m.Status.toInt()),
+			Address:     m.Address(),
+		})
+	}
+
+	// Exchange membership
+	msg, err := s.messageEndpoint.SyncSend(address, pb.Message{
+		Address: s.member.Address(),
+		Id:      xid.New().String(),
+		Payload: &pb.Message_Membership{
+			Membership: membership,
+		},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// Handle received membership
+	switch membership := msg.Payload.(type) {
+	case *pb.Message_Membership:
+		for _, m := range membership.Membership.Members {
+			switch m.Type {
+			case pb.Member_Alive:
+				// Call Alive function in memberMap.
+			case pb.Member_Confirm:
+				// Call Confirm function in memberMap.
+			case pb.Member_Suspect:
+				// Call Suspect function in memberMap.
+			default:
+				// PiggyBack_type error
+			}
+		}
+	default:
+		return errors.New("invaild response message")
+	}
+
 	return nil
 }
 

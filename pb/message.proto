@@ -13,9 +13,10 @@ message Message {
         Ack ack = 4;
         Nack nack = 5;
         IndirectPing indirect_ping = 6;
+        Membership membership= 7;
     }
 
-    PiggyBack piggyBack = 7;
+    PiggyBack piggyBack = 8;
 }
 
 message Ping {
@@ -37,6 +38,14 @@ message IndirectPing{
 }
 
 message PiggyBack{
+    Member member = 1;
+}
+
+message Membership {
+    repeated Member member = 1;
+}
+
+message Member{
 
     // status
     // 0 - Alive, 1 - Suspect, 2 - Confirm

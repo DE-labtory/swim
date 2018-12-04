@@ -394,17 +394,20 @@ func (s *SWIM) probe(member Member) {
 	// if successfully probed target member, then just return
 	case <-end:
 		iLogger.Infof(nil, "probe member [%s] successfully finished", member.ID)
+		s.awareness.ApplyDelta(-1)
 		return
 
 	// if probe failed, then suspect member
 	case <-failed:
 		iLogger.Infof(nil, "probe member [%s] failed, start suspect", member.ID)
+		s.awareness.ApplyDelta(1)
 		s.suspect(&member)
 		return
 
 	// if timed-out, then suspect member
 	case <-T.C:
 		iLogger.Infof(nil, "probe member [%s] failed, start suspect", member.ID)
+		s.awareness.ApplyDelta(1)
 		s.suspect(&member)
 		return
 	}

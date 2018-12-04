@@ -1581,8 +1581,12 @@ func TestSWIM_probe_When_Target_Respond_To_Ping(t *testing.T) {
 		Port: 11162,
 	}
 
+	awareness := NewAwareness(8)
+	awareness.ApplyDelta(2)
+
 	swim := &SWIM{}
 	swim.member = mI
+	swim.awareness = awareness
 	swim.config = config
 	swim.mbrStatsMsgStore = pbkStore
 	swim.memberMap = mm
@@ -1607,6 +1611,8 @@ func TestSWIM_probe_When_Target_Respond_To_Ping(t *testing.T) {
 	defer mIMessageEndpoint.Shutdown()
 
 	swim.probe(mJMember)
+
+	assert.Equal(t, swim.awareness.score, 1)
 }
 
 // This test case is for testing if we failed at ping to M_J, then indirect-probing is execute
@@ -1678,8 +1684,12 @@ func TestSWIM_probe_When_Target_Respond_To_Indirect_Ping(t *testing.T) {
 	mm.members[m1Member.ID] = m1Member
 	mm.members[m2Member.ID] = m2Member
 
+	awareness := NewAwareness(8)
+	awareness.ApplyDelta(2)
+
 	swim := &SWIM{}
 	swim.member = mI
+	swim.awareness = awareness
 	swim.config = config
 	swim.mbrStatsMsgStore = pbkStore
 	swim.memberMap = mm
@@ -1758,6 +1768,8 @@ func TestSWIM_probe_When_Target_Respond_To_Indirect_Ping(t *testing.T) {
 
 	mJMember := Member{ID: MemberID{ID: "mj"}, Addr: net.ParseIP("127.0.0.1"), Port: 11161, Status: Alive}
 	swim.probe(mJMember)
+
+	assert.Equal(t, swim.awareness.score, 1)
 }
 
 // This test case is for testing if we failed at ping to M_J, then indirect-probing is execute
@@ -1818,8 +1830,12 @@ func TestSWIM_probe_When_Target_Not_Respond_To_Indirect_Ping(t *testing.T) {
 	mm.members[m1Member.ID] = m1Member
 	mm.members[m2Member.ID] = m2Member
 
+	awareness := NewAwareness(8)
+	awareness.ApplyDelta(2)
+
 	swim := &SWIM{}
 	swim.member = mI
+	swim.awareness = awareness
 	swim.config = config
 	swim.mbrStatsMsgStore = pbkStore
 	swim.memberMap = mm
@@ -1906,6 +1922,8 @@ func TestSWIM_probe_When_Target_Not_Respond_To_Indirect_Ping(t *testing.T) {
 	mJMember := Member{ID: MemberID{ID: "mj"}, Addr: net.ParseIP("127.0.0.1"), Port: 11161, Status: Alive}
 
 	swim.probe(mJMember)
+
+	assert.Equal(t, swim.awareness.score, 3)
 }
 
 func createMessageEndpoint(t *testing.T, messageHandler MessageHandler, sendTimeout time.Duration, port int) MessageEndpoint {

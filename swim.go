@@ -17,14 +17,12 @@
 package swim
 
 import (
+	"sync/atomic"
 	"time"
 
+	"github.com/DE-labtory/swim/pb"
 	"github.com/it-chain/iLogger"
 	"github.com/rs/xid"
-
-	"sync/atomic"
-
-	"github.com/DE-labtory/swim/pb"
 )
 
 type Config struct {
@@ -119,6 +117,16 @@ func (s *SWIM) Start() {
 
 // Dial to the all peerAddresses and exchange memberList.
 func (s *SWIM) Join(peerAddresses []string) error {
+
+	for _, address := range peerAddresses {
+		s.exchangeMembership(address)
+	}
+
+	return nil
+}
+
+func (s *SWIM) exchangeMembership(address string) error {
+	//s.messageEndpoint.SyncSend()
 	return nil
 }
 
@@ -246,20 +254,21 @@ func (s *SWIM) handle(msg pb.Message) {
 // handle piggyback related to member status
 func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 	// Check if piggyback message changes memberMap.
+	member := piggyBack.Member
 	hasChanged := false
 
-	if s.member.ID.ID == piggyBack.Id {
+	if s.member.ID.ID == member.Id {
 		s.refute(piggyBack)
 		s.pbkStore.Push(*piggyBack)
 		return
 	}
 
-	switch piggyBack.Type {
-	case pb.PiggyBack_Alive:
+	switch member.Type {
+	case pb.Member_Alive:
 		// Call Alive function in memberMap.
-	case pb.PiggyBack_Confirm:
+	case pb.Member_Confirm:
 		// Call Confirm function in memberMap.
-	case pb.PiggyBack_Suspect:
+	case pb.Member_Suspect:
 		// Call Suspect function in memberMap.
 	default:
 		// PiggyBack_type error
@@ -274,7 +283,9 @@ func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 }
 
 func (s *SWIM) refute(piggyBack *pb.PiggyBack) {
-	accusedInc := piggyBack.Incarnation
+	member := piggyBack.Member
+
+	accusedInc := member.Incarnation
 	inc := atomic.AddUint32(&s.member.Incarnation, 1)
 	if s.member.Incarnation >= accusedInc {
 		inc = atomic.AddUint32(&s.member.Incarnation, accusedInc-inc+1)
@@ -282,7 +293,7 @@ func (s *SWIM) refute(piggyBack *pb.PiggyBack) {
 	s.member.Incarnation = inc
 
 	// Update piggyBack's incarnation to store to pbkStore
-	piggyBack.Incarnation = inc
+	member.Incarnation = inc
 
 	// Increase awareness count(Decrease our health) because we are being asked to refute a problem.
 	s.awareness.ApplyDelta(1)

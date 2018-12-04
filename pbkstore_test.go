@@ -27,11 +27,14 @@ import (
 
 func NewPiggyBack(id string) pb.PiggyBack {
 	return pb.PiggyBack{
-		Id:          id,
-		Incarnation: 1,
-		Address:     "123",
+		Member: &pb.Member{
+			Id:          id,
+			Incarnation: 1,
+			Address:     "123",
+		},
 	}
 }
+
 func TestPiggyBackPriorityStore_Push(t *testing.T) {
 
 	//given

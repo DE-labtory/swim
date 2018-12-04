@@ -130,9 +130,11 @@ func TestSWIM_handlePbk_refute_bigger(t *testing.T) {
 
 	msg := pb.Message{
 		PiggyBack: &pb.PiggyBack{
-			Id:          "abcde",
-			Incarnation: 5,
-			Address:     "127.0.0.1:11141",
+			Member: &pb.Member{
+				Id:          "abcde",
+				Incarnation: 5,
+				Address:     "127.0.0.1:11141",
+			},
 		},
 	}
 
@@ -178,9 +180,11 @@ func TestSWIM_handlePbk_refute_less(t *testing.T) {
 
 	msg := pb.Message{
 		PiggyBack: &pb.PiggyBack{
-			Id:          "abcde",
-			Incarnation: 5,
-			Address:     "127.0.0.1:11141",
+			Member: &pb.Member{
+				Id:          "abcde",
+				Incarnation: 5,
+				Address:     "127.0.0.1:11141",
+			},
 		},
 	}
 
@@ -199,10 +203,12 @@ func TestSWIM_handlePing(t *testing.T) {
 	pbkStore := MockPbkStore{}
 	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
 		return pb.PiggyBack{
-			Type:        pb.PiggyBack_Alive,
-			Id:          "pbk_id1",
-			Incarnation: 123,
-			Address:     "address123",
+			Member: &pb.Member{
+				Type:        pb.Member_Alive,
+				Id:          "pbk_id1",
+				Incarnation: 123,
+				Address:     "address123",
+			},
 		}, nil
 	}
 
@@ -243,9 +249,9 @@ func TestSWIM_handlePing(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Ack))
 	assert.Equal(t, resp.Id, id)
-	assert.Equal(t, resp.PiggyBack.Address, "address123")
-	assert.Equal(t, resp.PiggyBack.Incarnation, uint32(123))
-	assert.Equal(t, resp.PiggyBack.Id, "pbk_id1")
+	assert.Equal(t, resp.PiggyBack.Member.Address, "address123")
+	assert.Equal(t, resp.PiggyBack.Member.Incarnation, uint32(123))
+	assert.Equal(t, resp.PiggyBack.Member.Id, "pbk_id1")
 }
 
 // This is successful scenario when target member response in time with
@@ -256,10 +262,12 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 	pbkStore := MockPbkStore{}
 	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
 		return pb.PiggyBack{
-			Type:        pb.PiggyBack_Alive,
-			Id:          "pbk_id1",
-			Incarnation: 123,
-			Address:     "address123",
+			Member: &pb.Member{
+				Type:        pb.Member_Alive,
+				Id:          "pbk_id1",
+				Incarnation: 123,
+				Address:     "address123",
+			},
 		}, nil
 	}
 
@@ -306,9 +314,9 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 	mJMessageHandler.handleFunc = func(msg pb.Message) {
 		// check whether msg.Payload type is *pb.Message_Ping
 		assert.NotNil(t, msg.Payload.(*pb.Message_Ping))
-		assert.Equal(t, msg.PiggyBack.Address, "address123")
-		assert.Equal(t, msg.PiggyBack.Incarnation, uint32(123))
-		assert.Equal(t, msg.PiggyBack.Id, "pbk_id1")
+		assert.Equal(t, msg.PiggyBack.Member.Address, "address123")
+		assert.Equal(t, msg.PiggyBack.Member.Incarnation, uint32(123))
+		assert.Equal(t, msg.PiggyBack.Member.Id, "pbk_id1")
 
 		ack := pb.Message{Id: msg.Id, Payload: &pb.Message_Ack{Ack: &pb.Ack{}}, PiggyBack: &pb.PiggyBack{}}
 		mJ.Send("127.0.0.1:11145", ack)
@@ -318,9 +326,9 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Ack))
 	assert.Equal(t, resp.Id, id)
-	assert.Equal(t, resp.PiggyBack.Address, "address123")
-	assert.Equal(t, resp.PiggyBack.Incarnation, uint32(123))
-	assert.Equal(t, resp.PiggyBack.Id, "pbk_id1")
+	assert.Equal(t, resp.PiggyBack.Member.Address, "address123")
+	assert.Equal(t, resp.PiggyBack.Member.Incarnation, uint32(123))
+	assert.Equal(t, resp.PiggyBack.Member.Id, "pbk_id1")
 }
 
 // This is NOT-successful scenario when target member DID NOT response in time
@@ -331,10 +339,12 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	pbkStore := MockPbkStore{}
 	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
 		return pb.PiggyBack{
-			Type:        pb.PiggyBack_Alive,
-			Id:          "pbk_id1",
-			Incarnation: 123,
-			Address:     "address123",
+			Member: &pb.Member{
+				Type:        pb.Member_Alive,
+				Id:          "pbk_id1",
+				Incarnation: 123,
+				Address:     "address123",
+			},
 		}, nil
 	}
 
@@ -384,9 +394,9 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	mJMessageHandler.handleFunc = func(msg pb.Message) {
 		// check whether msg.Payload type is *pb.Message_Ping
 		assert.NotNil(t, msg.Payload.(*pb.Message_Ping))
-		assert.Equal(t, msg.PiggyBack.Address, "address123")
-		assert.Equal(t, msg.PiggyBack.Incarnation, uint32(123))
-		assert.Equal(t, msg.PiggyBack.Id, "pbk_id1")
+		assert.Equal(t, msg.PiggyBack.Member.Address, "address123")
+		assert.Equal(t, msg.PiggyBack.Member.Incarnation, uint32(123))
+		assert.Equal(t, msg.PiggyBack.Member.Id, "pbk_id1")
 
 		// DO NOT ANYTHING: do not response back to m
 	}
@@ -395,9 +405,9 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Nack))
 	assert.Equal(t, resp.Id, id)
-	assert.Equal(t, resp.PiggyBack.Address, "address123")
-	assert.Equal(t, resp.PiggyBack.Incarnation, uint32(123))
-	assert.Equal(t, resp.PiggyBack.Id, "pbk_id1")
+	assert.Equal(t, resp.PiggyBack.Member.Address, "address123")
+	assert.Equal(t, resp.PiggyBack.Member.Incarnation, uint32(123))
+	assert.Equal(t, resp.PiggyBack.Member.Id, "pbk_id1")
 }
 
 func createMessageEndpoint(messageHandler MessageHandler, sendTimeout time.Duration, port int) MessageEndpoint {

@@ -42,7 +42,7 @@ message PiggyBack{
 }
 
 message Membership {
-    repeated Member member = 1;
+    repeated Member members = 1;
 }
 
 message Member{

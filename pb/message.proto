@@ -13,7 +13,7 @@ message Message {
         Ack ack = 4;
         Nack nack = 5;
         IndirectPing indirect_ping = 6;
-        Membership membership= 7;
+        Membership membership = 7;
     }
 
     PiggyBack piggyBack = 8;
@@ -38,14 +38,16 @@ message IndirectPing{
 }
 
 message PiggyBack{
-    Member member = 1;
+    MbrStatsMsg mbrStatsMsg = 1;
 }
 
+// Membership has a list of Member status messages
 message Membership {
-    repeated Member members = 1;
+    repeated MbrStatsMsg mbrStatsMsgs = 1;
 }
 
-message Member{
+// Member status message
+message MbrStatsMsg{
 
     // status
     // 0 - Alive, 1 - Suspect, 2 - Confirm

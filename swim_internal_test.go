@@ -25,23 +25,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type MockPbkStore struct {
+type MockmbrStatsMsgStore struct {
 	LenFunc     func() int
-	PushFunc    func(pbk pb.PiggyBack)
-	GetFunc     func() (pb.PiggyBack, error)
+	PushFunc    func(mbrStatsMsg pb.MbrStatsMsg)
+	GetFunc     func() (pb.MbrStatsMsg, error)
 	IsEmptyFunc func() bool
 }
 
-func (p MockPbkStore) Len() int {
+func (p MockmbrStatsMsgStore) Len() int {
 	return p.LenFunc()
 }
-func (p MockPbkStore) Push(pbk pb.PiggyBack) {
-	p.PushFunc(pbk)
+func (p MockmbrStatsMsgStore) Push(mbrStatsMsg pb.MbrStatsMsg) {
+	p.PushFunc(mbrStatsMsg)
 }
-func (p MockPbkStore) Get() (pb.PiggyBack, error) {
+func (p MockmbrStatsMsgStore) Get() (pb.MbrStatsMsg, error) {
 	return p.GetFunc()
 }
-func (p MockPbkStore) IsEmpty() bool {
+func (p MockmbrStatsMsgStore) IsEmpty() bool {
 	return p.IsEmptyFunc()
 }
 
@@ -93,28 +93,28 @@ func TestSWIM_ShutDown(t *testing.T) {
 	wg.Wait()
 }
 
-func TestSWIM_handlePbk(t *testing.T) {
+func TestSWIM_handlembrStatsMsg(t *testing.T) {
 
 }
 
 // When you receive message that you are suspected, you refute
 // inc always sets the standard in small inc
-// TEST : When your inc is bigger than(or same) received piggyback data.
-func TestSWIM_handlePbk_refute_bigger(t *testing.T) {
+// TEST : When your inc is bigger than(or same) received MbrStatsMsg data.
+func TestSWIM_handlembrStatsMsg_refute_bigger(t *testing.T) {
 	heapSize := 1
 	q := setUpHeap(heapSize)
 
-	pbkStore := MockPbkStore{}
-	pbkStore.PushFunc = func(pbk pb.PiggyBack) {
+	mbrStatsMsgStore := MockmbrStatsMsgStore{}
+	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
 		item := Item{
-			value:    pbk,
+			value:    mbrStatsMsg,
 			priority: 1,
 		}
 		q.Push(&item)
 	}
 
-	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
-		return q.Pop().(*Item).value.(pb.PiggyBack), nil
+	mbrStatsMsgStore.GetFunc = func() (pb.MbrStatsMsg, error) {
+		return q.Pop().(*Item).value.(pb.MbrStatsMsg), nil
 	}
 
 	swim := SWIM{}
@@ -122,7 +122,7 @@ func TestSWIM_handlePbk_refute_bigger(t *testing.T) {
 
 	swim.awareness = NewAwareness(8)
 	swim.messageEndpoint = mI
-	swim.pbkStore = pbkStore
+	swim.mbrStatsMsgStore = mbrStatsMsgStore
 	swim.member = &Member{
 		ID:          MemberID{"abcde"},
 		Incarnation: 5,
@@ -130,7 +130,7 @@ func TestSWIM_handlePbk_refute_bigger(t *testing.T) {
 
 	msg := pb.Message{
 		PiggyBack: &pb.PiggyBack{
-			Member: &pb.Member{
+			MbrStatsMsg: &pb.MbrStatsMsg{
 				Id:          "abcde",
 				Incarnation: 5,
 				Address:     "127.0.0.1:11141",
@@ -138,33 +138,33 @@ func TestSWIM_handlePbk_refute_bigger(t *testing.T) {
 		},
 	}
 
-	swim.handlePbk(msg.PiggyBack)
+	swim.handleMbrStatsMsg(msg.PiggyBack.MbrStatsMsg)
 
 	assert.Equal(t, swim.member.Incarnation, uint32(6))
 
-	pbk, err := swim.pbkStore.Get()
+	mbrStatsMsg, err := swim.mbrStatsMsgStore.Get()
 	assert.NoError(t, err)
-	assert.Equal(t, &pbk, msg.PiggyBack)
+	assert.Equal(t, &mbrStatsMsg, msg.PiggyBack.MbrStatsMsg)
 }
 
 // When you receive message that you are suspected, you refute
 // inc always sets the standard in small inc
-// TEST : When your inc is less than your piggyback data.
-func TestSWIM_handlePbk_refute_less(t *testing.T) {
+// TEST : When your inc is less than your MbrStatsMsg data.
+func TestSWIM_handlembrStatsMsg_refute_less(t *testing.T) {
 	heapSize := 1
 	q := setUpHeap(heapSize)
 
-	pbkStore := MockPbkStore{}
-	pbkStore.PushFunc = func(pbk pb.PiggyBack) {
+	mbrStatsMsgStore := MockmbrStatsMsgStore{}
+	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
 		item := Item{
-			value:    pbk,
+			value:    mbrStatsMsg,
 			priority: 1,
 		}
 		q.Push(&item)
 	}
 
-	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
-		return q.Pop().(*Item).value.(pb.PiggyBack), nil
+	mbrStatsMsgStore.GetFunc = func() (pb.MbrStatsMsg, error) {
+		return q.Pop().(*Item).value.(pb.MbrStatsMsg), nil
 	}
 
 	swim := SWIM{}
@@ -172,7 +172,7 @@ func TestSWIM_handlePbk_refute_less(t *testing.T) {
 
 	swim.awareness = NewAwareness(8)
 	swim.messageEndpoint = mI
-	swim.pbkStore = pbkStore
+	swim.mbrStatsMsgStore = mbrStatsMsgStore
 	swim.member = &Member{
 		ID:          MemberID{"abcde"},
 		Incarnation: 3,
@@ -180,7 +180,7 @@ func TestSWIM_handlePbk_refute_less(t *testing.T) {
 
 	msg := pb.Message{
 		PiggyBack: &pb.PiggyBack{
-			Member: &pb.Member{
+			MbrStatsMsg: &pb.MbrStatsMsg{
 				Id:          "abcde",
 				Incarnation: 5,
 				Address:     "127.0.0.1:11141",
@@ -188,27 +188,25 @@ func TestSWIM_handlePbk_refute_less(t *testing.T) {
 		},
 	}
 
-	swim.handlePbk(msg.PiggyBack)
+	swim.handleMbrStatsMsg(msg.PiggyBack.MbrStatsMsg)
 
 	assert.Equal(t, swim.member.Incarnation, uint32(4))
 
-	pbk, err := swim.pbkStore.Get()
+	mbrStatsMsg, err := swim.mbrStatsMsgStore.Get()
 	assert.NoError(t, err)
-	assert.Equal(t, &pbk, msg.PiggyBack)
+	assert.Equal(t, &mbrStatsMsg, msg.PiggyBack.MbrStatsMsg)
 }
 
 func TestSWIM_handlePing(t *testing.T) {
 	id := "1"
 
-	pbkStore := MockPbkStore{}
-	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
-		return pb.PiggyBack{
-			Member: &pb.Member{
-				Type:        pb.Member_Alive,
-				Id:          "pbk_id1",
-				Incarnation: 123,
-				Address:     "address123",
-			},
+	mbrStatsMsgStore := MockmbrStatsMsgStore{}
+	mbrStatsMsgStore.GetFunc = func() (pb.MbrStatsMsg, error) {
+		return pb.MbrStatsMsg{
+			Type:        pb.MbrStatsMsg_Alive,
+			Id:          "mbrStatsMsg_id1",
+			Incarnation: 123,
+			Address:     "address123",
 		}, nil
 	}
 
@@ -221,7 +219,7 @@ func TestSWIM_handlePing(t *testing.T) {
 	mJ := createMessageEndpoint(&swim, time.Second, 11144)
 
 	swim.messageEndpoint = mJ
-	swim.pbkStore = pbkStore
+	swim.mbrStatsMsgStore = mbrStatsMsgStore
 	swim.member = &Member{
 		ID:          MemberID{"abcde2"},
 		Incarnation: 3,
@@ -237,7 +235,9 @@ func TestSWIM_handlePing(t *testing.T) {
 		Payload: &pb.Message_Ping{
 			Ping: &pb.Ping{},
 		},
-		PiggyBack: &pb.PiggyBack{},
+		PiggyBack: &pb.PiggyBack{
+			MbrStatsMsg: &pb.MbrStatsMsg{},
+		},
 	}
 
 	defer func() {
@@ -249,9 +249,9 @@ func TestSWIM_handlePing(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Ack))
 	assert.Equal(t, resp.Id, id)
-	assert.Equal(t, resp.PiggyBack.Member.Address, "address123")
-	assert.Equal(t, resp.PiggyBack.Member.Incarnation, uint32(123))
-	assert.Equal(t, resp.PiggyBack.Member.Id, "pbk_id1")
+	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Address, "address123")
+	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Incarnation, uint32(123))
+	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Id, "mbrStatsMsg_id1")
 }
 
 // This is successful scenario when target member response in time with
@@ -259,15 +259,13 @@ func TestSWIM_handlePing(t *testing.T) {
 func TestSWIM_handleIndirectPing(t *testing.T) {
 	id := "1"
 
-	pbkStore := MockPbkStore{}
-	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
-		return pb.PiggyBack{
-			Member: &pb.Member{
-				Type:        pb.Member_Alive,
-				Id:          "pbk_id1",
-				Incarnation: 123,
-				Address:     "address123",
-			},
+	mbrStatsMsgStore := MockmbrStatsMsgStore{}
+	mbrStatsMsgStore.GetFunc = func() (pb.MbrStatsMsg, error) {
+		return pb.MbrStatsMsg{
+			Type:        pb.MbrStatsMsg_Alive,
+			Id:          "mbrStatsMsg_id1",
+			Incarnation: 123,
+			Address:     "address123",
 		}, nil
 	}
 
@@ -280,7 +278,7 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 	mJ := createMessageEndpoint(&mJMessageHandler, time.Second, 11147)
 
 	swim.messageEndpoint = mK
-	swim.pbkStore = pbkStore
+	swim.mbrStatsMsgStore = mbrStatsMsgStore
 	swim.member = &Member{
 		ID:          MemberID{"abcde"},
 		Incarnation: 3,
@@ -302,7 +300,9 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 				Target: "127.0.0.1:11147",
 			},
 		},
-		PiggyBack: &pb.PiggyBack{},
+		PiggyBack: &pb.PiggyBack{
+			MbrStatsMsg: &pb.MbrStatsMsg{},
+		},
 	}
 
 	defer func() {
@@ -314,11 +314,13 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 	mJMessageHandler.handleFunc = func(msg pb.Message) {
 		// check whether msg.Payload type is *pb.Message_Ping
 		assert.NotNil(t, msg.Payload.(*pb.Message_Ping))
-		assert.Equal(t, msg.PiggyBack.Member.Address, "address123")
-		assert.Equal(t, msg.PiggyBack.Member.Incarnation, uint32(123))
-		assert.Equal(t, msg.PiggyBack.Member.Id, "pbk_id1")
+		assert.Equal(t, msg.PiggyBack.MbrStatsMsg.Address, "address123")
+		assert.Equal(t, msg.PiggyBack.MbrStatsMsg.Incarnation, uint32(123))
+		assert.Equal(t, msg.PiggyBack.MbrStatsMsg.Id, "mbrStatsMsg_id1")
 
-		ack := pb.Message{Id: msg.Id, Payload: &pb.Message_Ack{Ack: &pb.Ack{}}, PiggyBack: &pb.PiggyBack{}}
+		ack := pb.Message{Id: msg.Id, Payload: &pb.Message_Ack{Ack: &pb.Ack{}}, PiggyBack: &pb.PiggyBack{
+			MbrStatsMsg: &pb.MbrStatsMsg{},
+		}}
 		mJ.Send("127.0.0.1:11145", ack)
 	}
 
@@ -326,9 +328,9 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Ack))
 	assert.Equal(t, resp.Id, id)
-	assert.Equal(t, resp.PiggyBack.Member.Address, "address123")
-	assert.Equal(t, resp.PiggyBack.Member.Incarnation, uint32(123))
-	assert.Equal(t, resp.PiggyBack.Member.Id, "pbk_id1")
+	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Address, "address123")
+	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Incarnation, uint32(123))
+	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Id, "mbrStatsMsg_id1")
 }
 
 // This is NOT-successful scenario when target member DID NOT response in time
@@ -336,15 +338,13 @@ func TestSWIM_handleIndirectPing(t *testing.T) {
 func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	id := "1"
 
-	pbkStore := MockPbkStore{}
-	pbkStore.GetFunc = func() (pb.PiggyBack, error) {
-		return pb.PiggyBack{
-			Member: &pb.Member{
-				Type:        pb.Member_Alive,
-				Id:          "pbk_id1",
-				Incarnation: 123,
-				Address:     "address123",
-			},
+	mbrStatsMsgStore := MockmbrStatsMsgStore{}
+	mbrStatsMsgStore.GetFunc = func() (pb.MbrStatsMsg, error) {
+		return pb.MbrStatsMsg{
+			Type:        pb.MbrStatsMsg_Alive,
+			Id:          "mbrStatsMsg_id1",
+			Incarnation: 123,
+			Address:     "address123",
 		}, nil
 	}
 
@@ -359,7 +359,7 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	mJ := createMessageEndpoint(&mJMessageHandler, time.Second, 11150)
 
 	swim.messageEndpoint = mK
-	swim.pbkStore = pbkStore
+	swim.mbrStatsMsgStore = mbrStatsMsgStore
 	swim.member = &Member{
 		ID:          MemberID{"abcde"},
 		Incarnation: 3,
@@ -382,7 +382,9 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 				Target: "127.0.0.1:11150",
 			},
 		},
-		PiggyBack: &pb.PiggyBack{},
+		PiggyBack: &pb.PiggyBack{
+			MbrStatsMsg: &pb.MbrStatsMsg{},
+		},
 	}
 
 	defer func() {
@@ -394,9 +396,9 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	mJMessageHandler.handleFunc = func(msg pb.Message) {
 		// check whether msg.Payload type is *pb.Message_Ping
 		assert.NotNil(t, msg.Payload.(*pb.Message_Ping))
-		assert.Equal(t, msg.PiggyBack.Member.Address, "address123")
-		assert.Equal(t, msg.PiggyBack.Member.Incarnation, uint32(123))
-		assert.Equal(t, msg.PiggyBack.Member.Id, "pbk_id1")
+		assert.Equal(t, msg.PiggyBack.MbrStatsMsg.Address, "address123")
+		assert.Equal(t, msg.PiggyBack.MbrStatsMsg.Incarnation, uint32(123))
+		assert.Equal(t, msg.PiggyBack.MbrStatsMsg.Id, "mbrStatsMsg_id1")
 
 		// DO NOT ANYTHING: do not response back to m
 	}
@@ -405,9 +407,9 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resp.Payload.(*pb.Message_Nack))
 	assert.Equal(t, resp.Id, id)
-	assert.Equal(t, resp.PiggyBack.Member.Address, "address123")
-	assert.Equal(t, resp.PiggyBack.Member.Incarnation, uint32(123))
-	assert.Equal(t, resp.PiggyBack.Member.Id, "pbk_id1")
+	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Address, "address123")
+	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Incarnation, uint32(123))
+	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Id, "mbrStatsMsg_id1")
 }
 
 func createMessageEndpoint(messageHandler MessageHandler, sendTimeout time.Duration, port int) MessageEndpoint {
@@ -425,6 +427,5 @@ func createMessageEndpoint(messageHandler MessageHandler, sendTimeout time.Durat
 	transport, _ := NewPacketTransport(tConfig)
 
 	m, _ := NewMessageEndpoint(mConfig, transport, messageHandler)
-
 	return m
 }

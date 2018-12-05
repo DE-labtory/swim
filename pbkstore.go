@@ -38,23 +38,23 @@ const (
 // The lower the priority, the faster the queried.
 // The data has a member status, such as alive, suspected or dead.
 
-type PBkStore interface {
+type MbrStatsMsgStore interface {
 	Len() int
-	Push(pbk pb.PiggyBack)
-	Get() (pb.PiggyBack, error)
+	Push(pbk pb.MbrStatsMsg)
+	Get() (pb.MbrStatsMsg, error)
 	IsEmpty() bool
 }
 
 // PiggyBackStore stores piggyback data in the priority queue and returns data with smallest local count.
-type PriorityPBStore struct {
+type PriorityMbrStatsMsgStore struct {
 	q             PriorityQueue
 	maxLocalCount int
 	lock          sync.RWMutex
 }
 
 // macLocalCount is the max priority value
-func NewPriorityPBStore(maxLocalCount int) *PriorityPBStore {
-	return &PriorityPBStore{
+func NewPriorityMbrStatsMsgStore(maxLocalCount int) *PriorityMbrStatsMsgStore {
+	return &PriorityMbrStatsMsgStore{
 		q:             make(PriorityQueue, 0),
 		maxLocalCount: maxLocalCount,
 		lock:          sync.RWMutex{},
@@ -62,7 +62,7 @@ func NewPriorityPBStore(maxLocalCount int) *PriorityPBStore {
 }
 
 // Return current size of data
-func (p *PriorityPBStore) Len() int {
+func (p *PriorityMbrStatsMsgStore) Len() int {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -71,34 +71,34 @@ func (p *PriorityPBStore) Len() int {
 
 // Initially, set the local count to zero.
 // If the queue size is max, delete the data with the highest localcount and insert it.
-func (p *PriorityPBStore) Push(pbk pb.PiggyBack) {
+func (p *PriorityMbrStatsMsgStore) Push(msg pb.MbrStatsMsg) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
 	item := &Item{
-		value:    pbk,
+		value:    msg,
 		priority: InitialPriority,
 	}
 
 	heap.Push(&p.q, item)
 }
 
-// Return the piggyback data with the smallest local count in the list,
+// Return the mbrStatsMsg with the smallest local count in the list,
 // increment the local count and sort it again, not delete the data.
-func (p *PriorityPBStore) Get() (pb.PiggyBack, error) {
+func (p *PriorityMbrStatsMsgStore) Get() (pb.MbrStatsMsg, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
 	// Check empty
 	if len(p.q) == 0 {
-		return pb.PiggyBack{}, ErrStoreEmpty
+		return pb.MbrStatsMsg{}, ErrStoreEmpty
 	}
 
 	// Pop from queue
 	item := heap.Pop(&p.q).(*Item)
-	pbk, ok := item.value.(pb.PiggyBack)
+	msg, ok := item.value.(pb.MbrStatsMsg)
 	if !ok {
-		return pb.PiggyBack{}, ErrPopInvalidType
+		return pb.MbrStatsMsg{}, ErrPopInvalidType
 	}
 
 	// If an item has been retrieved by maxPriority, remove it.
@@ -108,10 +108,10 @@ func (p *PriorityPBStore) Get() (pb.PiggyBack, error) {
 		heap.Push(&p.q, item)
 	}
 
-	return pbk, nil
+	return msg, nil
 }
 
-func (p *PriorityPBStore) IsEmpty() bool {
+func (p *PriorityMbrStatsMsgStore) IsEmpty() bool {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 

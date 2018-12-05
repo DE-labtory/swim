@@ -23,7 +23,7 @@ import (
 )
 
 func TestNewPiggyBackPriorityStore(t *testing.T) {
-	pbkStore := NewPriorityPBStore(3)
+	pbkStore := NewPriorityMbrStatsMsgStore(3)
 
 	assert.Equal(t, pbkStore.q.Len(), 0)
 	assert.Equal(t, pbkStore.maxLocalCount, 3)

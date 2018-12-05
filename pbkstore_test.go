@@ -25,87 +25,85 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func NewPiggyBack(id string) pb.PiggyBack {
-	return pb.PiggyBack{
-		Member: &pb.Member{
-			Id:          id,
-			Incarnation: 1,
-			Address:     "123",
-		},
+func NewMbrStatsMsg(id string) pb.MbrStatsMsg {
+	return pb.MbrStatsMsg{
+		Id:          id,
+		Incarnation: 1,
+		Address:     "123",
 	}
 }
 
 func TestPiggyBackPriorityStore_Push(t *testing.T) {
 
 	//given
-	pbkStore := swim.NewPriorityPBStore(3)
+	mbrStatsMsgStore := swim.NewPriorityMbrStatsMsgStore(3)
 
 	//when
-	pbkStore.Push(NewPiggyBack("1"))
-	pbkStore.Push(NewPiggyBack("2"))
+	mbrStatsMsgStore.Push(NewMbrStatsMsg("1"))
+	mbrStatsMsgStore.Push(NewMbrStatsMsg("2"))
 
 	//then
-	assert.Equal(t, pbkStore.Len(), 2)
+	assert.Equal(t, mbrStatsMsgStore.Len(), 2)
 }
 
 func TestPiggyBackPriorityStore_Get(t *testing.T) {
 
 	// given
-	pbkStore := swim.NewPriorityPBStore(3)
-	pbkStore.Push(NewPiggyBack("1"))
+	mbrStatsMsgStore := swim.NewPriorityMbrStatsMsgStore(3)
+	mbrStatsMsgStore.Push(NewMbrStatsMsg("1"))
 
 	// when
-	// When get function called, pbkstore internally increases the priority.
+	// When get function called, mbrStatsMsgstore internally increases the priority.
 	// First time
-	pbkData, err := pbkStore.Get()
+	mbrStatsMsgData, err := mbrStatsMsgStore.Get()
 	assert.Nil(t, err)
 
 	// then
-	assert.Equal(t, pbkData, NewPiggyBack("1"))
-	assert.Equal(t, pbkStore.Len(), 1)
+	assert.Equal(t, mbrStatsMsgData, NewMbrStatsMsg("1"))
+	assert.Equal(t, mbrStatsMsgStore.Len(), 1)
 
 	// when
 	// Second time
-	pbkData_2, err := pbkStore.Get()
+	mbrStatsMsgData_2, err := mbrStatsMsgStore.Get()
 	assert.Nil(t, err)
 
 	// then
-	assert.Equal(t, pbkData_2, NewPiggyBack("1"))
-	assert.Equal(t, pbkStore.Len(), 1)
+	assert.Equal(t, mbrStatsMsgData_2, NewMbrStatsMsg("1"))
+	assert.Equal(t, mbrStatsMsgStore.Len(), 1)
 
 	// when
 	// Third time
-	pbkData_3, err := pbkStore.Get()
+	mbrStatsMsgData_3, err := mbrStatsMsgStore.Get()
 	assert.Nil(t, err)
 
 	// then
-	assert.Equal(t, pbkData_3, NewPiggyBack("1"))
+	assert.Equal(t, mbrStatsMsgData_3, NewMbrStatsMsg("1"))
 
 	// This time data was queried three times, so it was deleted
-	assert.Equal(t, pbkStore.Len(), 0)
+	assert.Equal(t, mbrStatsMsgStore.Len(), 0)
 
 	// when
-	_, err = pbkStore.Get()
+	_, err = mbrStatsMsgStore.Get()
 	assert.Equal(t, err, swim.ErrStoreEmpty)
 }
 
 func TestPiggyBackPriorityStore_Len(t *testing.T) {
 
 	// given
-	pbkStore := swim.NewPriorityPBStore(3)
+	mbrStatsMsgStore := swim.NewPriorityMbrStatsMsgStore(3)
 	for i := 0; i < 3; i++ {
-		pbkStore.Push(NewPiggyBack(strconv.Itoa(i)))
+		mbrStatsMsgStore.Push(NewMbrStatsMsg(strconv.Itoa(i)))
 	}
 
 	// when && then
-	assert.Equal(t, pbkStore.Len(), 3)
+	assert.Equal(t, mbrStatsMsgStore.Len(), 3)
 }
 
 func TestPiggyBackPriorityStore_IsEmpty(t *testing.T) {
 
 	// given
-	pbkStore := swim.NewPriorityPBStore(3)
+	mbrStatsMsgStore := swim.NewPriorityMbrStatsMsgStore(3)
 
 	// when && then
-	assert.True(t, pbkStore.IsEmpty())
+	assert.True(t, mbrStatsMsgStore.IsEmpty())
 }

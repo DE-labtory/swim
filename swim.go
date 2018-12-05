@@ -17,10 +17,9 @@
 package swim
 
 import (
+	"errors"
 	"sync/atomic"
 	"time"
-
-	"errors"
 
 	"github.com/DE-labtory/swim/pb"
 	"github.com/it-chain/iLogger"
@@ -69,8 +68,8 @@ type SWIM struct {
 	// FailureDetector quit channel
 	quitFD chan struct{}
 
-	// Piggyback-store which store messages about recent state changes of member.
-	pbkStore PBkStore
+	// MbrStatsMsgStore which store messages about recent state changes of member.
+	mbrStatsMsgStore MbrStatsMsgStore
 }
 
 func New(config *Config, suspicionConfig *SuspicionConfig, messageEndpointConfig MessageEndpointConfig, member *Member) *SWIM {
@@ -131,13 +130,13 @@ func (s *SWIM) exchangeMembership(address string) error {
 
 	// Create membership message
 	membership := &pb.Membership{
-		Members: make([]*pb.Member, 0),
+		MbrStatsMsgs: make([]*pb.MbrStatsMsg, 0),
 	}
 	for _, m := range s.memberMap.GetMembers() {
-		membership.Members = append(membership.Members, &pb.Member{
+		membership.MbrStatsMsgs = append(membership.MbrStatsMsgs, &pb.MbrStatsMsg{
 			Incarnation: m.Incarnation,
 			Id:          m.GetIDString(),
-			Type:        pb.Member_Type(m.Status.toInt()),
+			Type:        pb.MbrStatsMsg_Type(m.Status.toInt()),
 			Address:     m.Address(),
 		})
 	}
@@ -158,23 +157,40 @@ func (s *SWIM) exchangeMembership(address string) error {
 	// Handle received membership
 	switch membership := msg.Payload.(type) {
 	case *pb.Message_Membership:
-		for _, m := range membership.Membership.Members {
-			switch m.Type {
-			case pb.Member_Alive:
-				// Call Alive function in memberMap.
-			case pb.Member_Confirm:
-				// Call Confirm function in memberMap.
-			case pb.Member_Suspect:
-				// Call Suspect function in memberMap.
-			default:
-				// PiggyBack_type error
-			}
+		for _, m := range membership.Membership.MbrStatsMsgs {
+			s.handleMbrStatsMsg(m)
 		}
 	default:
 		return errors.New("invaild response message")
 	}
 
 	return nil
+}
+
+func (s *SWIM) handleMbrStatsMsg(mbrStatsMsg *pb.MbrStatsMsg) {
+
+	hasChanged := false
+	if s.member.ID.ID == mbrStatsMsg.Id {
+		s.refute(mbrStatsMsg)
+		s.mbrStatsMsgStore.Push(*mbrStatsMsg)
+		return
+	}
+
+	switch mbrStatsMsg.Type {
+	case pb.MbrStatsMsg_Alive:
+		// Call Alive function in memberMap.
+	case pb.MbrStatsMsg_Suspect:
+		// Call Suspect function in memberMap.
+	default:
+		// PiggyBack_type error
+	}
+
+	// Push piggyback when status of membermap has updated.
+	// If the content of the piggyback is about a new state change,
+	// it must propagate to inform the network of the new state change.
+	if hasChanged {
+		s.mbrStatsMsgStore.Push(*mbrStatsMsg)
+	}
 }
 
 // Gossip message to p2p network.
@@ -301,21 +317,19 @@ func (s *SWIM) handle(msg pb.Message) {
 // handle piggyback related to member status
 func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 	// Check if piggyback message changes memberMap.
-	member := piggyBack.Member
+	mbrStatsMsg := piggyBack.MbrStatsMsg
 	hasChanged := false
 
-	if s.member.ID.ID == member.Id {
-		s.refute(piggyBack)
-		s.pbkStore.Push(*piggyBack)
+	if s.member.ID.ID == mbrStatsMsg.Id {
+		s.refute(mbrStatsMsg)
+		s.mbrStatsMsgStore.Push(*mbrStatsMsg)
 		return
 	}
 
-	switch member.Type {
-	case pb.Member_Alive:
+	switch mbrStatsMsg.Type {
+	case pb.MbrStatsMsg_Alive:
 		// Call Alive function in memberMap.
-	case pb.Member_Confirm:
-		// Call Confirm function in memberMap.
-	case pb.Member_Suspect:
+	case pb.MbrStatsMsg_Suspect:
 		// Call Suspect function in memberMap.
 	default:
 		// PiggyBack_type error
@@ -325,14 +339,13 @@ func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
 	// If the content of the piggyback is about a new state change,
 	// it must propagate to inform the network of the new state change.
 	if hasChanged {
-		s.pbkStore.Push(*piggyBack)
+		s.mbrStatsMsgStore.Push(*mbrStatsMsg)
 	}
 }
 
-func (s *SWIM) refute(piggyBack *pb.PiggyBack) {
-	member := piggyBack.Member
+func (s *SWIM) refute(mbrStatsMsg *pb.MbrStatsMsg) {
 
-	accusedInc := member.Incarnation
+	accusedInc := mbrStatsMsg.Incarnation
 	inc := atomic.AddUint32(&s.member.Incarnation, 1)
 	if s.member.Incarnation >= accusedInc {
 		inc = atomic.AddUint32(&s.member.Incarnation, accusedInc-inc+1)
@@ -340,7 +353,7 @@ func (s *SWIM) refute(piggyBack *pb.PiggyBack) {
 	s.member.Incarnation = inc
 
 	// Update piggyBack's incarnation to store to pbkStore
-	member.Incarnation = inc
+	mbrStatsMsg.Incarnation = inc
 
 	// Increase awareness count(Decrease our health) because we are being asked to refute a problem.
 	s.awareness.ApplyDelta(1)
@@ -350,7 +363,7 @@ func (s *SWIM) refute(piggyBack *pb.PiggyBack) {
 func (s *SWIM) handlePing(msg pb.Message) {
 	id := msg.Id
 
-	pbk, err := s.pbkStore.Get()
+	mbrStatsMsg, err := s.mbrStatsMsgStore.Get()
 	if err != nil {
 		iLogger.Error(nil, err.Error())
 	}
@@ -358,7 +371,7 @@ func (s *SWIM) handlePing(msg pb.Message) {
 	// address of messgae source member
 	scrAddr := msg.Address
 
-	ack := createAckMessage(id, &pbk)
+	ack := createAckMessage(id, &mbrStatsMsg)
 	if err := s.messageEndpoint.Send(scrAddr, ack); err != nil {
 		iLogger.Error(nil, err.Error())
 	}
@@ -372,7 +385,7 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	id := msg.Id
 
 	// retrieve piggyback data from pbkStore
-	pbk, err := s.pbkStore.Get()
+	mbrStatsMsg, err := s.mbrStatsMsgStore.Get()
 	if err != nil {
 		iLogger.Error(nil, err.Error())
 	}
@@ -383,7 +396,7 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	// address of indirect-ping's target
 	targetAddr := msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target
 
-	ping := createPingMessage(&pbk)
+	ping := createPingMessage(&mbrStatsMsg)
 
 	// first send the ping to target member, if target member could not send-back
 	// ack message for whatever reason send nack message to source member,
@@ -391,45 +404,51 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	// to source member
 
 	if _, err := s.messageEndpoint.SyncSend(targetAddr, ping); err != nil {
-		nack := createNackMessage(id, &pbk)
+		nack := createNackMessage(id, &mbrStatsMsg)
 		if err := s.messageEndpoint.Send(srcAddr, nack); err != nil {
 			iLogger.Error(nil, err.Error())
 		}
 		return
 	}
 
-	ack := createAckMessage(id, &pbk)
+	ack := createAckMessage(id, &mbrStatsMsg)
 	if err := s.messageEndpoint.Send(srcAddr, ack); err != nil {
 		iLogger.Error(nil, err.Error())
 	}
 }
 
-func createPingMessage(pbk *pb.PiggyBack) pb.Message {
+func createPingMessage(mbrStatsMsg *pb.MbrStatsMsg) pb.Message {
 	return pb.Message{
 		Id: xid.New().String(),
 		Payload: &pb.Message_Ping{
 			Ping: &pb.Ping{},
 		},
-		PiggyBack: pbk,
+		PiggyBack: &pb.PiggyBack{
+			MbrStatsMsg: mbrStatsMsg,
+		},
 	}
 }
 
-func createNackMessage(seq string, pbk *pb.PiggyBack) pb.Message {
+func createNackMessage(seq string, mbrStatsMsg *pb.MbrStatsMsg) pb.Message {
 	return pb.Message{
 		Id: seq,
 		Payload: &pb.Message_Nack{
 			Nack: &pb.Nack{},
 		},
-		PiggyBack: pbk,
+		PiggyBack: &pb.PiggyBack{
+			MbrStatsMsg: mbrStatsMsg,
+		},
 	}
 }
 
-func createAckMessage(seq string, pbk *pb.PiggyBack) pb.Message {
+func createAckMessage(seq string, mbrStatsMsg *pb.MbrStatsMsg) pb.Message {
 	return pb.Message{
 		Id: seq,
 		Payload: &pb.Message_Ack{
 			Ack: &pb.Ack{},
 		},
-		PiggyBack: pbk,
+		PiggyBack: &pb.PiggyBack{
+			MbrStatsMsg: mbrStatsMsg,
+		},
 	}
 }

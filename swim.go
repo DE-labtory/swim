@@ -18,8 +18,9 @@ package swim
 
 import (
 	"errors"
-	"sync/atomic"
 	"time"
+
+	"sync/atomic"
 
 	"github.com/DE-labtory/swim/pb"
 	"github.com/it-chain/iLogger"
@@ -129,17 +130,7 @@ func (s *SWIM) Join(peerAddresses []string) error {
 func (s *SWIM) exchangeMembership(address string) error {
 
 	// Create membership message
-	membership := &pb.Membership{
-		MbrStatsMsgs: make([]*pb.MbrStatsMsg, 0),
-	}
-	for _, m := range s.memberMap.GetMembers() {
-		membership.MbrStatsMsgs = append(membership.MbrStatsMsgs, &pb.MbrStatsMsg{
-			Incarnation: m.Incarnation,
-			Id:          m.GetIDString(),
-			Type:        pb.MbrStatsMsg_Type(m.Status.toInt()),
-			Address:     m.Address(),
-		})
-	}
+	membership := s.createMembership()
 
 	// Exchange membership
 	msg, err := s.messageEndpoint.SyncSend(address, pb.Message{
@@ -155,9 +146,9 @@ func (s *SWIM) exchangeMembership(address string) error {
 	}
 
 	// Handle received membership
-	switch membership := msg.Payload.(type) {
+	switch msg := msg.Payload.(type) {
 	case *pb.Message_Membership:
-		for _, m := range membership.Membership.MbrStatsMsgs {
+		for _, m := range msg.Membership.MbrStatsMsgs {
 			s.handleMbrStatsMsg(m)
 		}
 	default:
@@ -165,6 +156,23 @@ func (s *SWIM) exchangeMembership(address string) error {
 	}
 
 	return nil
+}
+
+func (s *SWIM) createMembership() *pb.Membership {
+
+	membership := &pb.Membership{
+		MbrStatsMsgs: make([]*pb.MbrStatsMsg, 0),
+	}
+	for _, m := range s.memberMap.GetMembers() {
+		membership.MbrStatsMsgs = append(membership.MbrStatsMsgs, &pb.MbrStatsMsg{
+			Incarnation: m.Incarnation,
+			Id:          m.GetIDString(),
+			Type:        pb.MbrStatsMsg_Type(m.Status.toInt()),
+			Address:     m.Address(),
+		})
+	}
+
+	return membership
 }
 
 func (s *SWIM) handleMbrStatsMsg(mbrStatsMsg *pb.MbrStatsMsg) {
@@ -191,6 +199,22 @@ func (s *SWIM) handleMbrStatsMsg(mbrStatsMsg *pb.MbrStatsMsg) {
 	if hasChanged {
 		s.mbrStatsMsgStore.Push(*mbrStatsMsg)
 	}
+}
+
+func (s *SWIM) refute(mbrStatsMsg *pb.MbrStatsMsg) {
+
+	accusedInc := mbrStatsMsg.Incarnation
+	inc := atomic.AddUint32(&s.member.Incarnation, 1)
+	if s.member.Incarnation >= accusedInc {
+		inc = atomic.AddUint32(&s.member.Incarnation, accusedInc-inc+1)
+	}
+	s.member.Incarnation = inc
+
+	// Update piggyBack's incarnation to store to pbkStore
+	mbrStatsMsg.Incarnation = inc
+
+	// Increase awareness count(Decrease our health) because we are being asked to refute a problem.
+	s.awareness.ApplyDelta(1)
 }
 
 // Gossip message to p2p network.
@@ -302,13 +326,15 @@ func (s *SWIM) handle(msg pb.Message) {
 
 	s.handlePbk(msg.PiggyBack)
 
-	switch msg.Payload.(type) {
+	switch p := msg.Payload.(type) {
 	case *pb.Message_Ping:
 		s.handlePing(msg)
 	case *pb.Message_Ack:
 		// handle ack
 	case *pb.Message_IndirectPing:
 		s.handleIndirectPing(msg)
+	case *pb.Message_Membership:
+		s.handleMembership(p.Membership, msg.Address)
 	default:
 
 	}
@@ -316,47 +342,11 @@ func (s *SWIM) handle(msg pb.Message) {
 
 // handle piggyback related to member status
 func (s *SWIM) handlePbk(piggyBack *pb.PiggyBack) {
-	// Check if piggyback message changes memberMap.
+
 	mbrStatsMsg := piggyBack.MbrStatsMsg
-	hasChanged := false
 
-	if s.member.ID.ID == mbrStatsMsg.Id {
-		s.refute(mbrStatsMsg)
-		s.mbrStatsMsgStore.Push(*mbrStatsMsg)
-		return
-	}
-
-	switch mbrStatsMsg.Type {
-	case pb.MbrStatsMsg_Alive:
-		// Call Alive function in memberMap.
-	case pb.MbrStatsMsg_Suspect:
-		// Call Suspect function in memberMap.
-	default:
-		// PiggyBack_type error
-	}
-
-	// Push piggyback when status of membermap has updated.
-	// If the content of the piggyback is about a new state change,
-	// it must propagate to inform the network of the new state change.
-	if hasChanged {
-		s.mbrStatsMsgStore.Push(*mbrStatsMsg)
-	}
-}
-
-func (s *SWIM) refute(mbrStatsMsg *pb.MbrStatsMsg) {
-
-	accusedInc := mbrStatsMsg.Incarnation
-	inc := atomic.AddUint32(&s.member.Incarnation, 1)
-	if s.member.Incarnation >= accusedInc {
-		inc = atomic.AddUint32(&s.member.Incarnation, accusedInc-inc+1)
-	}
-	s.member.Incarnation = inc
-
-	// Update piggyBack's incarnation to store to pbkStore
-	mbrStatsMsg.Incarnation = inc
-
-	// Increase awareness count(Decrease our health) because we are being asked to refute a problem.
-	s.awareness.ApplyDelta(1)
+	// Check if piggyback message changes memberMap.
+	s.handleMbrStatsMsg(mbrStatsMsg)
 }
 
 // handlePing send back Ack message by response
@@ -397,7 +387,6 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	targetAddr := msg.Payload.(*pb.Message_IndirectPing).IndirectPing.Target
 
 	ping := createPingMessage(&mbrStatsMsg)
-
 	// first send the ping to target member, if target member could not send-back
 	// ack message for whatever reason send nack message to source member,
 	// if successfully received ack message from target, then send back ack message
@@ -415,6 +404,32 @@ func (s *SWIM) handleIndirectPing(msg pb.Message) {
 	if err := s.messageEndpoint.Send(srcAddr, ack); err != nil {
 		iLogger.Error(nil, err.Error())
 	}
+}
+
+// handleMembership receives Membership message.
+// create membership message with membermap and reply to the message with it.
+func (s *SWIM) handleMembership(membership *pb.Membership, address string) error {
+	// Create membership message
+	m := s.createMembership()
+
+	// Reply
+	err := s.messageEndpoint.Send(address, pb.Message{
+		Address: s.member.Address(),
+		Id:      xid.New().String(),
+		Payload: &pb.Message_Membership{
+			Membership: m,
+		},
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for _, m := range membership.MbrStatsMsgs {
+		s.handleMbrStatsMsg(m)
+	}
+
+	return nil
 }
 
 func createPingMessage(mbrStatsMsg *pb.MbrStatsMsg) pb.Message {

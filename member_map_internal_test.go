@@ -424,9 +424,7 @@ func TestMemberMap_Suspect_When_Member_Suspect_Without_Suspicion(t *testing.T) {
 		},
 		ConfirmerID: "IAMCONFIRMER",
 	}
-
 	res, err := m.Suspect(msg1)
-
 	assert.Equal(t, res, true)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, member1.Incarnation, msg1.Incarnation)
@@ -434,11 +432,6 @@ func TestMemberMap_Suspect_When_Member_Suspect_Without_Suspicion(t *testing.T) {
 	assert.Equal(t, member1.Suspicion.confirmations, map[MemberID]struct{}{
 		MemberID{ID: "IAMCONFIRMER"}: {},
 	})
-
-	// When member already have suspicion not update timestamp
-	// only update suspicion timeout, in this case member1 have no initial timestamp
-	// so assert with isZero
-	assert.True(t, member1.LastStatusChange.IsZero())
 }
 
 func TestMemberMap_Suspect_When_Dead(t *testing.T) {

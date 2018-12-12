@@ -5,8 +5,16 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/it-chain/iLogger"
+)
+
+type status = int32
+
+const (
+	AVAILABLE status = iota
+	DIE
 )
 
 type Task func() (interface{}, error)
@@ -17,8 +25,9 @@ type TaskResponse struct {
 }
 
 type TaskRunner struct {
-	task Task
-	ctx  context.Context
+	task     Task
+	ctx      context.Context
+	stopFlag int32
 }
 
 func NewTaskRunner(task Task, ctx context.Context) *TaskRunner {
@@ -28,14 +37,26 @@ func NewTaskRunner(task Task, ctx context.Context) *TaskRunner {
 	}
 }
 
+func (t *TaskRunner) stop() {
+	atomic.CompareAndSwapInt32(&t.stopFlag, AVAILABLE, DIE)
+}
+
+func (t *TaskRunner) toDie() bool {
+	return atomic.LoadInt32(&(t.stopFlag)) == DIE
+}
+
 func (t *TaskRunner) Start() TaskResponse {
 	done := make(chan TaskResponse)
 	defer func() {
-		close(done)
+		t.stop()
 	}()
 
 	go func() {
 		result, err := t.task()
+		if t.toDie() {
+			return
+		}
+
 		if err != nil {
 			iLogger.Errorf(nil, "[TaskRunner] error occured: [%s]", err.Error())
 			done <- TaskResponse{

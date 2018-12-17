@@ -27,6 +27,8 @@ import (
 	"github.com/rs/xid"
 )
 
+var ErrInvalidMbrStatsMsgType = errors.New("error handling invalid mbrStatsMsg type")
+
 type Config struct {
 
 	// The maximum number of times the same piggyback data can be queried
@@ -176,8 +178,9 @@ func (s *SWIM) createMembership() *pb.Membership {
 }
 
 func (s *SWIM) handleMbrStatsMsg(mbrStatsMsg *pb.MbrStatsMsg) {
-
+	msgHandleErr := error(nil)
 	hasChanged := false
+
 	if s.member.ID.ID == mbrStatsMsg.Id {
 		s.refute(mbrStatsMsg)
 		s.mbrStatsMsgStore.Push(*mbrStatsMsg)
@@ -186,11 +189,16 @@ func (s *SWIM) handleMbrStatsMsg(mbrStatsMsg *pb.MbrStatsMsg) {
 
 	switch mbrStatsMsg.Type {
 	case pb.MbrStatsMsg_Alive:
-		// Call Alive function in memberMap.
+		hasChanged, msgHandleErr = s.handleMbrAliveMsg(mbrStatsMsg)
 	case pb.MbrStatsMsg_Suspect:
-		// Call Suspect function in memberMap.
+		hasChanged, msgHandleErr = s.handleMbrSuspectMsg(mbrStatsMsg)
 	default:
-		// PiggyBack_type error
+		msgHandleErr = ErrInvalidMbrStatsMsgType
+	}
+
+	if msgHandleErr != nil {
+		iLogger.Errorf(nil, "error occured when handling mbrStatsMsg [%s], error [%s]", mbrStatsMsg, msgHandleErr)
+		return
 	}
 
 	// Push piggyback when status of membermap has updated.
@@ -199,6 +207,55 @@ func (s *SWIM) handleMbrStatsMsg(mbrStatsMsg *pb.MbrStatsMsg) {
 	if hasChanged {
 		s.mbrStatsMsgStore.Push(*mbrStatsMsg)
 	}
+}
+
+func (s *SWIM) handleMbrAliveMsg(stats *pb.MbrStatsMsg) (bool, error) {
+	msg, err := s.mbrStatsToAliveMsg(stats)
+	if err != nil {
+		return false, err
+	}
+
+	return s.memberMap.Alive(msg)
+}
+
+func (s *SWIM) handleMbrSuspectMsg(stats *pb.MbrStatsMsg) (bool, error) {
+	msg, err := s.mbrStatsToSuspectMsg(stats)
+	if err != nil {
+		return false, err
+	}
+
+	return s.memberMap.Suspect(msg)
+}
+
+func (s *SWIM) mbrStatsToAliveMsg(stats *pb.MbrStatsMsg) (AliveMessage, error) {
+	host, port, err := ParseHostPort(stats.Address)
+	if err != nil {
+		return AliveMessage{}, err
+	}
+	return AliveMessage{
+		MemberMessage: MemberMessage{
+			ID:          stats.Id,
+			Addr:        host,
+			Port:        port,
+			Incarnation: stats.Incarnation,
+		},
+	}, nil
+}
+
+func (s *SWIM) mbrStatsToSuspectMsg(stats *pb.MbrStatsMsg) (SuspectMessage, error) {
+	host, port, err := ParseHostPort(stats.Address)
+	if err != nil {
+		return SuspectMessage{}, nil
+	}
+	return SuspectMessage{
+		MemberMessage: MemberMessage{
+			ID:          stats.Id,
+			Addr:        host,
+			Port:        port,
+			Incarnation: stats.Incarnation,
+		},
+		ConfirmerID: s.member.ID.ID,
+	}, nil
 }
 
 func (s *SWIM) refute(mbrStatsMsg *pb.MbrStatsMsg) {

@@ -387,7 +387,11 @@ func TestMemberMap_Suspect_When_Member_Suspect_Without_Suspicion(t *testing.T) {
 		Status:      Suspected,
 	}
 
-	m := NewMemberMap(&SuspicionConfig{})
+	m := NewMemberMap(&SuspicionConfig{
+		k:   1000,
+		min: time.Hour,
+		max: time.Hour * 8,
+	})
 	m.members[MemberID{ID: "1"}] = member1
 
 	// Suspect message with equal incarnation

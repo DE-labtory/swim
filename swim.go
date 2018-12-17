@@ -27,7 +27,7 @@ import (
 	"github.com/rs/xid"
 )
 
-var ErrInvalidMbrStatsMsgType = errors.New("error handling invalid mbrStatsMsg type")
+var ErrInvalidMbrStatsMsgType = errors.New("error invalid mbrStatsMsg type")
 
 type Config struct {
 
@@ -189,9 +189,9 @@ func (s *SWIM) handleMbrStatsMsg(mbrStatsMsg *pb.MbrStatsMsg) {
 
 	switch mbrStatsMsg.Type {
 	case pb.MbrStatsMsg_Alive:
-		hasChanged, msgHandleErr = s.handleMbrAliveMsg(mbrStatsMsg)
+		hasChanged, msgHandleErr = s.handleAliveMbrStatsMsg(mbrStatsMsg)
 	case pb.MbrStatsMsg_Suspect:
-		hasChanged, msgHandleErr = s.handleMbrSuspectMsg(mbrStatsMsg)
+		hasChanged, msgHandleErr = s.handleSuspectMbrStatsMsg(mbrStatsMsg)
 	default:
 		msgHandleErr = ErrInvalidMbrStatsMsgType
 	}
@@ -209,8 +209,12 @@ func (s *SWIM) handleMbrStatsMsg(mbrStatsMsg *pb.MbrStatsMsg) {
 	}
 }
 
-func (s *SWIM) handleMbrAliveMsg(stats *pb.MbrStatsMsg) (bool, error) {
-	msg, err := s.mbrStatsToAliveMsg(stats)
+func (s *SWIM) handleAliveMbrStatsMsg(stats *pb.MbrStatsMsg) (bool, error) {
+	if stats.Type != pb.MbrStatsMsg_Alive {
+		return false, ErrInvalidMbrStatsMsgType
+	}
+
+	msg, err := s.convMbrStatsToAliveMsg(stats)
 	if err != nil {
 		return false, err
 	}
@@ -218,8 +222,12 @@ func (s *SWIM) handleMbrAliveMsg(stats *pb.MbrStatsMsg) (bool, error) {
 	return s.memberMap.Alive(msg)
 }
 
-func (s *SWIM) handleMbrSuspectMsg(stats *pb.MbrStatsMsg) (bool, error) {
-	msg, err := s.mbrStatsToSuspectMsg(stats)
+func (s *SWIM) handleSuspectMbrStatsMsg(stats *pb.MbrStatsMsg) (bool, error) {
+	if stats.Type != pb.MbrStatsMsg_Suspect {
+		return false, ErrInvalidMbrStatsMsgType
+	}
+
+	msg, err := s.convMbrStatsToSuspectMsg(stats)
 	if err != nil {
 		return false, err
 	}
@@ -227,7 +235,11 @@ func (s *SWIM) handleMbrSuspectMsg(stats *pb.MbrStatsMsg) (bool, error) {
 	return s.memberMap.Suspect(msg)
 }
 
-func (s *SWIM) mbrStatsToAliveMsg(stats *pb.MbrStatsMsg) (AliveMessage, error) {
+func (s *SWIM) convMbrStatsToAliveMsg(stats *pb.MbrStatsMsg) (AliveMessage, error) {
+	if stats.Type != pb.MbrStatsMsg_Alive {
+		return AliveMessage{}, ErrInvalidMbrStatsMsgType
+	}
+
 	host, port, err := ParseHostPort(stats.Address)
 	if err != nil {
 		return AliveMessage{}, err
@@ -242,10 +254,14 @@ func (s *SWIM) mbrStatsToAliveMsg(stats *pb.MbrStatsMsg) (AliveMessage, error) {
 	}, nil
 }
 
-func (s *SWIM) mbrStatsToSuspectMsg(stats *pb.MbrStatsMsg) (SuspectMessage, error) {
+func (s *SWIM) convMbrStatsToSuspectMsg(stats *pb.MbrStatsMsg) (SuspectMessage, error) {
+	if stats.Type != pb.MbrStatsMsg_Suspect {
+		return SuspectMessage{}, ErrInvalidMbrStatsMsgType
+	}
+
 	host, port, err := ParseHostPort(stats.Address)
 	if err != nil {
-		return SuspectMessage{}, nil
+		return SuspectMessage{}, err
 	}
 	return SuspectMessage{
 		MemberMessage: MemberMessage{

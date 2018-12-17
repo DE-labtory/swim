@@ -2,6 +2,7 @@ package swim
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strconv"
 
@@ -59,14 +60,20 @@ func (t *TaskRunner) Start() TaskResponse {
 }
 
 func ParseHostPort(address string) (net.IP, uint16, error) {
-	host, sport, err := net.SplitHostPort(address)
+	shost, sport, err := net.SplitHostPort(address)
 	if err != nil {
-		return net.ParseIP(host), 0, err
-	}
-	port, err := strconv.ParseUint(sport, 10, 16)
-	if err != nil {
-		return net.ParseIP(host), uint16(port), err
+		return net.IP{}, 0, err
 	}
 
-	return net.ParseIP(host), uint16(port), nil
+	host := net.ParseIP(shost)
+	if net.IP(nil).Equal(host) {
+		return net.IP{}, 0, errors.New("invalid ip format")
+	}
+
+	port, err := strconv.ParseUint(sport, 10, 16)
+	if err != nil {
+		return net.IP{}, 0, err
+	}
+
+	return host, uint16(port), nil
 }

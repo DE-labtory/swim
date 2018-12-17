@@ -198,7 +198,6 @@ func (m *MemberMap) GetMembers() []Member {
 func (m *MemberMap) Suspect(msg SuspectMessage) (bool, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-
 	// if member id is empty, return empty memberID err
 	if msg.ID == "" {
 		return false, ErrEmptyMemberID

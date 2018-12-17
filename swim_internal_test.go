@@ -17,6 +17,7 @@
 package swim
 
 import (
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -91,10 +92,6 @@ func TestSWIM_ShutDown(t *testing.T) {
 	s.ShutDown()
 
 	wg.Wait()
-}
-
-func TestSWIM_handlembrStatsMsg(t *testing.T) {
-
 }
 
 // When you receive message that you are suspected, you refute
@@ -195,6 +192,188 @@ func TestSWIM_handlembrStatsMsg_refute_less(t *testing.T) {
 	mbrStatsMsg, err := swim.mbrStatsMsgStore.Get()
 	assert.NoError(t, err)
 	assert.Equal(t, &mbrStatsMsg, msg.PiggyBack.MbrStatsMsg)
+}
+
+func TestSWIM_HandleMbrStatsMsg_AliveMsg(t *testing.T) {
+	// setup MbrStatsMsgStore
+	var pushedMbrStatsMsg pb.MbrStatsMsg
+
+	mbrStatsMsgStore := &MockmbrStatsMsgStore{}
+	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
+		pushedMbrStatsMsg = mbrStatsMsg
+	}
+
+	// setup member_map
+	mm := NewMemberMap(&SuspicionConfig{})
+	mm.members[MemberID{ID: "1"}] = &Member{
+		ID:     MemberID{ID: "1"},
+		Status: Dead,
+	}
+
+	// setup SWIM
+	swim := &SWIM{
+		member: &Member{
+			ID: MemberID{ID: "123"},
+		},
+		memberMap:        mm,
+		mbrStatsMsgStore: mbrStatsMsgStore,
+	}
+
+	// given
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Alive,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4:5555",
+	}
+
+	// when
+	swim.handleMbrStatsMsg(stats)
+
+	// then
+	assert.Equal(t, pushedMbrStatsMsg.Type, stats.Type)
+	assert.Equal(t, pushedMbrStatsMsg.Id, stats.Id)
+	assert.Equal(t, pushedMbrStatsMsg.Incarnation, stats.Incarnation)
+	assert.Equal(t, pushedMbrStatsMsg.Address, stats.Address)
+
+	assert.Equal(t, mm.members[MemberID{ID: "1"}].Status, Alive)
+	assert.Equal(t, mm.members[MemberID{ID: "1"}].Incarnation, stats.Incarnation)
+}
+
+func TestSWIM_HandleMbrStatsMsg_AliveMsg_Error(t *testing.T) {
+	// setup MbrStatsMsgStore
+	var pushedMbrStatsMsg pb.MbrStatsMsg
+
+	mbrStatsMsgStore := &MockmbrStatsMsgStore{}
+	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
+		pushedMbrStatsMsg = mbrStatsMsg
+	}
+
+	// setup member_map
+	mm := NewMemberMap(&SuspicionConfig{})
+	mm.members[MemberID{ID: "1"}] = &Member{
+		ID:          MemberID{ID: "1"},
+		Status:      Dead,
+		Incarnation: uint32(1),
+	}
+
+	// setup SWIM
+	swim := &SWIM{
+		member: &Member{
+			ID: MemberID{ID: "123"},
+		},
+		memberMap:        mm,
+		mbrStatsMsgStore: mbrStatsMsgStore,
+	}
+
+	// given
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Alive,
+		Id:          "1",
+		Incarnation: uint32(2),
+		// error occured becuase of invalid address format
+		Address: "1.2.3.4.555:5555",
+	}
+
+	// when
+	swim.handleMbrStatsMsg(stats)
+
+	// then
+	assert.Equal(t, pushedMbrStatsMsg, pb.MbrStatsMsg{})
+
+	assert.Equal(t, mm.members[MemberID{ID: "1"}].Status, Dead)
+	assert.Equal(t, mm.members[MemberID{ID: "1"}].Incarnation, uint32(1))
+}
+
+func TestSWIM_HandleMbrStatsMsg_SuspectMsg(t *testing.T) {
+	// setup MbrStatsMsgStore
+	var pushedMbrStatsMsg pb.MbrStatsMsg
+
+	mbrStatsMsgStore := &MockmbrStatsMsgStore{}
+	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
+		pushedMbrStatsMsg = mbrStatsMsg
+	}
+
+	// setup member_map
+	mm := NewMemberMap(&SuspicionConfig{})
+	mm.members[MemberID{ID: "1"}] = &Member{
+		ID:     MemberID{ID: "1"},
+		Status: Alive,
+	}
+
+	// setup SWIM
+	swim := &SWIM{
+		member: &Member{
+			ID: MemberID{ID: "123"},
+		},
+		memberMap:        mm,
+		mbrStatsMsgStore: mbrStatsMsgStore,
+	}
+
+	// given
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Suspect,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4:5555",
+	}
+
+	// when
+	swim.handleMbrStatsMsg(stats)
+
+	// then
+	assert.Equal(t, pushedMbrStatsMsg.Type, stats.Type)
+	assert.Equal(t, pushedMbrStatsMsg.Id, stats.Id)
+	assert.Equal(t, pushedMbrStatsMsg.Incarnation, stats.Incarnation)
+	assert.Equal(t, pushedMbrStatsMsg.Address, stats.Address)
+
+	assert.Equal(t, mm.members[MemberID{ID: "1"}].Status, Suspected)
+	assert.Equal(t, mm.members[MemberID{ID: "1"}].Incarnation, stats.Incarnation)
+}
+
+func TestSWIM_HandleMbrStatsMsg_SuspectMsg_Error(t *testing.T) {
+	// setup MbrStatsMsgStore
+	var pushedMbrStatsMsg pb.MbrStatsMsg
+
+	mbrStatsMsgStore := &MockmbrStatsMsgStore{}
+	mbrStatsMsgStore.PushFunc = func(mbrStatsMsg pb.MbrStatsMsg) {
+		pushedMbrStatsMsg = mbrStatsMsg
+	}
+
+	// setup member_map
+	mm := NewMemberMap(&SuspicionConfig{})
+	mm.members[MemberID{ID: "1"}] = &Member{
+		ID:          MemberID{ID: "1"},
+		Status:      Alive,
+		Incarnation: uint32(1),
+	}
+
+	// setup SWIM
+	swim := &SWIM{
+		member: &Member{
+			ID: MemberID{ID: "123"},
+		},
+		memberMap:        mm,
+		mbrStatsMsgStore: mbrStatsMsgStore,
+	}
+
+	// given
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Suspect,
+		Id:          "1",
+		Incarnation: uint32(2),
+		// error occured becuase of invalid address format
+		Address: "1.2.3.4.555:5555",
+	}
+
+	// when
+	swim.handleMbrStatsMsg(stats)
+
+	// then
+	assert.Equal(t, pushedMbrStatsMsg, pb.MbrStatsMsg{})
+
+	assert.Equal(t, mm.members[MemberID{ID: "1"}].Status, Alive)
+	assert.Equal(t, mm.members[MemberID{ID: "1"}].Incarnation, uint32(1))
 }
 
 func TestSWIM_handlePing(t *testing.T) {
@@ -410,6 +589,209 @@ func TestSWIM_handleIndirectPing_Target_Timeout(t *testing.T) {
 	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Address, "address123")
 	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Incarnation, uint32(123))
 	assert.Equal(t, resp.PiggyBack.MbrStatsMsg.Id, "mbrStatsMsg_id1")
+}
+
+func TestConvMbrStatsToAliveMsg_InvalidMsgType(t *testing.T) {
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Suspect,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4:5555",
+	}
+
+	swim := &SWIM{}
+	// when
+	msg, err := swim.convMbrStatsToAliveMsg(stats)
+
+	// then
+	assert.Equal(t, msg, AliveMessage{})
+	assert.Equal(t, err, ErrInvalidMbrStatsMsgType)
+}
+
+func TestConvMbrStatsToAliveMsg_InvalidAddressFormat(t *testing.T) {
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Suspect,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4.5:5555",
+	}
+
+	swim := &SWIM{}
+	// when
+	msg, err := swim.convMbrStatsToAliveMsg(stats)
+
+	// then
+	assert.Equal(t, msg, AliveMessage{})
+	assert.Error(t, err)
+}
+
+func TestConvMbrStatsToAliveMsg_Success(t *testing.T) {
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Alive,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4:5555",
+	}
+
+	swim := &SWIM{}
+	// when
+	msg, err := swim.convMbrStatsToAliveMsg(stats)
+
+	// then
+	assert.Equal(t, msg.ID, stats.Id)
+	assert.Equal(t, msg.Incarnation, stats.Incarnation)
+	assert.Equal(t, msg.Addr, net.ParseIP("1.2.3.4"))
+	assert.Equal(t, msg.Port, uint16(5555))
+	assert.NoError(t, err)
+}
+
+func TestConvMbrStatsToSuspectMsg_InvalidMsgType(t *testing.T) {
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Alive,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4:5555",
+	}
+
+	swim := &SWIM{}
+	// when
+	msg, err := swim.convMbrStatsToSuspectMsg(stats)
+
+	// then
+	assert.Equal(t, msg, SuspectMessage{})
+	assert.Equal(t, err, ErrInvalidMbrStatsMsgType)
+}
+
+func TestConvMbrStatsToSuspectMsg_InvalidAddressFormat(t *testing.T) {
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Alive,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4.555:5555",
+	}
+
+	swim := &SWIM{}
+	// when
+	msg, err := swim.convMbrStatsToSuspectMsg(stats)
+
+	// then
+	assert.Equal(t, msg, SuspectMessage{})
+	assert.Error(t, err)
+}
+
+func TestConvMbrStatsToSuspectMsg_Success(t *testing.T) {
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Suspect,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4:5555",
+	}
+
+	swim := &SWIM{
+		member: &Member{
+			ID: MemberID{ID: "123"},
+		},
+	}
+	// when
+	msg, err := swim.convMbrStatsToSuspectMsg(stats)
+
+	// then
+	assert.Equal(t, msg.ID, stats.Id)
+	assert.Equal(t, msg.Incarnation, stats.Incarnation)
+	assert.Equal(t, msg.Addr, net.ParseIP("1.2.3.4"))
+	assert.Equal(t, msg.Port, uint16(5555))
+	assert.Equal(t, msg.ConfirmerID, "123")
+	assert.NoError(t, err)
+}
+
+func TestHandleAliveMbrStats_InvalidMsgType(t *testing.T) {
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Suspect,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4:5555",
+	}
+
+	swim := &SWIM{}
+	// when
+	result, err := swim.handleAliveMbrStatsMsg(stats)
+
+	// then
+	assert.Equal(t, result, false)
+	assert.Equal(t, err, ErrInvalidMbrStatsMsgType)
+}
+
+func TestHandleAliveMbrStats_Success(t *testing.T) {
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Alive,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4:5555",
+	}
+
+	mm := NewMemberMap(&SuspicionConfig{})
+	mm.members[MemberID{ID: "1"}] = &Member{
+		ID:     MemberID{ID: "1"},
+		Status: Dead,
+	}
+
+	swim := &SWIM{
+		memberMap: mm,
+	}
+
+	// when
+	result, err := swim.handleAliveMbrStatsMsg(stats)
+
+	// then
+	assert.Equal(t, result, true)
+	assert.NoError(t, err)
+}
+
+func TestHandleSuspectMbrStats_InvalidMsgType(t *testing.T) {
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Alive,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4:5555",
+	}
+
+	swim := &SWIM{}
+	// when
+	result, err := swim.handleSuspectMbrStatsMsg(stats)
+
+	// then
+	assert.Equal(t, result, false)
+	assert.Equal(t, err, ErrInvalidMbrStatsMsgType)
+}
+
+func TestHandleSuspectMbrStats_Success(t *testing.T) {
+	stats := &pb.MbrStatsMsg{
+		Type:        pb.MbrStatsMsg_Suspect,
+		Id:          "1",
+		Incarnation: uint32(2),
+		Address:     "1.2.3.4:5555",
+	}
+
+	mm := NewMemberMap(&SuspicionConfig{})
+	mm.members[MemberID{ID: "1"}] = &Member{
+		ID:          MemberID{ID: "1"},
+		Incarnation: uint32(1),
+		Status:      Alive,
+	}
+
+	swim := &SWIM{
+		member: &Member{
+			ID: MemberID{ID: "123"},
+		},
+		memberMap: mm,
+	}
+
+	// when
+	result, err := swim.handleSuspectMbrStatsMsg(stats)
+
+	// then
+	assert.Equal(t, true, result)
+	assert.NoError(t, err)
 }
 
 func createMessageEndpoint(messageHandler MessageHandler, sendTimeout time.Duration, port int) MessageEndpoint {

@@ -3,6 +3,7 @@ package swim
 import (
 	"context"
 	"errors"
+	"net"
 	"reflect"
 	"sync"
 	"testing"
@@ -92,4 +93,24 @@ func TestTaskRunner_Start_Cancellation(t *testing.T) {
 	// cancel the task
 	cancel()
 	wg.Wait()
+}
+
+func TestParseHostPort(t *testing.T) {
+	fullAddr := "111.112.113.114:5555"
+	host, port, err := ParseHostPort(fullAddr)
+	assert.Equal(t, host, net.ParseIP("111.112.113.114"))
+	assert.Equal(t, port, uint16(5555))
+	assert.NoError(t, err)
+
+	addr2 := "1234:5555"
+	host2, port2, err2 := ParseHostPort(addr2)
+	assert.Equal(t, host2, net.IP{})
+	assert.Equal(t, uint16(0), port2)
+	assert.Error(t, err2)
+
+	addr3 := "111.112.113.114:6666666666"
+	host3, port3, err3 := ParseHostPort(addr3)
+	assert.Equal(t, host3, net.IP{})
+	assert.Equal(t, uint16(0), port3)
+	assert.Error(t, err3)
 }

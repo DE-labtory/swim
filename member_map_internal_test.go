@@ -242,7 +242,7 @@ func TestMemberMap_SelectKRandomMember(t *testing.T) {
 		assert.True(t, checkExist(rMembers, members[i]))
 	}
 
-	// case 2: when k is larger then length of members
+	// case 2: when K is larger then length of members
 	assert.Equal(t, len(m.SelectKRandomMemberID(5)), 3)
 }
 
@@ -410,9 +410,9 @@ func TestMemberMap_Suspect_When_Member_Suspect_Without_Suspicion(t *testing.T) {
 	}
 
 	m := NewMemberMap(&SuspicionConfig{
-		k:   1000,
-		min: time.Hour,
-		max: time.Hour * 8,
+		K:   1000,
+		Min: time.Hour,
+		Max: time.Hour * 8,
 	})
 	m.members[MemberID{ID: "1"}] = member1
 

@@ -19,7 +19,6 @@ package swim
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"sync"
 	"time"
@@ -341,10 +340,10 @@ func (s *SWIM) toDie() bool {
 // 2. SWIM waits for ack of the member(j) during the ack-timeout (time less than T).
 //    End failure Detector if ack message arrives on ack-timeout.
 //
-// 3. SWIM selects k number of members from the memberMap and sends indirect-ping(request k members to ping the member(j)).
+// 3. SWIM selects K number of members from the memberMap and sends indirect-ping(request K members to ping the member(j)).
 //    The nodes (that receive the indirect-ping) ping to the member(j) and ack when they receive ack from the member(j).
 //
-// 4. At the end of T, SWIM checks to see if ack was received from k members, and if there is no message,
+// 4. At the end of T, SWIM checks to see if ack was received from K members, and if there is no message,
 //    The member(j) is judged to be failed, so check the member(j) as suspected or delete the member(j) from memberMap.
 //
 // ** When performing ping, ack, and indirect-ping in the above procedure, piggybackdata is sent together. **
@@ -390,10 +389,10 @@ func (s *SWIM) startFailureDetector() {
 // 1. Send ping to the member(j) during the ack-timeout (time less than T).
 //    Return if ack message arrives on ack-timeout.
 //
-// 2. selects k number of members from the memberMap and sends indirect-ping(request k members to ping the member(j)).
+// 2. selects K number of members from the memberMap and sends indirect-ping(request K members to ping the member(j)).
 //    The nodes (that receive the indirect-ping) ping to the member(j) and ack when they receive ack from the member(j).
 //
-// 3. At the end of T, SWIM checks to see if ack was received from k members, and if there is no message,
+// 3. At the end of T, SWIM checks to see if ack was received from K members, and if there is no message,
 //    The member(j) is judged to be failed, so check the member(j) as suspected or delete the member(j) from memberMap.
 //
 func (s *SWIM) probe(member Member, timer *time.Timer) {
@@ -452,7 +451,6 @@ func (s *SWIM) probe(member Member, timer *time.Timer) {
 	// otherwise just decrease Awareness score
 	case resp := <-end:
 		if !resp.Ok() {
-			fmt.Println("not ok")
 			s.awareness.ApplyDelta(1)
 			s.suspect(&member)
 			return
@@ -462,11 +460,11 @@ func (s *SWIM) probe(member Member, timer *time.Timer) {
 	}
 }
 
-// indirectProbe select k-random member from MemberMap, sends
+// indirectProbe select K-random member from MemberMap, sends
 // indirect-ping to them. if one of them sends back Ack message
 // then indirectProbe success, otherwise failed.
-// if one of k-member successfully received ACK message, then cancel
-// k-1 member's probe
+// if one of K-member successfully received ACK message, then cancel
+// K-1 member's probe
 func (s *SWIM) indirectProbe(target *Member) error {
 	wg := &sync.WaitGroup{}
 	wg.Add(s.config.K)
@@ -515,8 +513,8 @@ func (s *SWIM) indirectProbe(target *Member) error {
 		}(m)
 	}
 
-	// wait until k-random member sends back response, if response message
-	// is Ack message, then indirectProbe success because one of k-member
+	// wait until K-random member sends back response, if response message
+	// is Ack message, then indirectProbe success because one of K-member
 	// success UDP communication, if Nack message or Invalid message, increase
 	// @unexpectedRespCounter then wait other member's response
 
@@ -543,7 +541,7 @@ func (s *SWIM) indirectProbe(target *Member) error {
 // ping ping to member with piggyback message after sending ping message
 // the result can be:
 // 1. timeout
-//    in this case, push signal to start indirect-ping request to k random nodes
+//    in this case, push signal to start indirect-ping request to K random nodes
 // 2. successfully probed
 //    in the case of successfully probe target node, update member state with
 //    piggyback message sent from target member.
@@ -572,7 +570,7 @@ func (s *SWIM) ping(target *Member) error {
 // indirectPing sends indirect-ping to @member targeting @target member
 // ** only when @member sends back to local node, push Message to channel
 // otherwise just return **
-// @ctx is for sending cancel signal from outside, when one of k-member successfully
+// @ctx is for sending cancel signal from outside, when one of K-member successfully
 // received ACK message or when in the exceptional situation
 func (s *SWIM) indirectPing(mediator, target Member) (pb.Message, error) {
 	stats, err := s.mbrStatsMsgStore.Get()

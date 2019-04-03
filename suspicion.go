@@ -38,14 +38,14 @@ type Suspicion struct {
 	// n is the number of independent confirmations we've seen.
 	n int32
 
-	// k is the maximum number of independent confirmation's we'd like to see
-	// this value is for making timer to drive @min value
+	// K is the maximum number of independent confirmation's we'd like to see
+	// this value is for making timer to drive @Min value
 	k int32
 
-	// min is the minimum timer value
+	// Min is the minimum timer value
 	min time.Duration
 
-	// max is the maximum timer value
+	// Max is the maximum timer value
 	max time.Duration
 
 	// start captures the timestamp when the suspect began the timer. This value is used
@@ -65,9 +65,9 @@ type Suspicion struct {
 	confirmations map[MemberID]struct{}
 }
 
-// NewSuspicion returns a timer started with the max value, and according to
+// NewSuspicion returns a timer started with the Max value, and according to
 // Lifeguard L2 (Dynamic Suspicion timeout) each unique confirmation will drive the timer
-// to min value
+// to Min value
 func NewSuspicion(confirmer MemberID, k int, min time.Duration, max time.Duration, timeoutHandler func()) (*Suspicion, error) {
 
 	if timeoutHandler == nil {
@@ -88,7 +88,7 @@ func NewSuspicion(confirmer MemberID, k int, min time.Duration, max time.Duratio
 	// easy telemetry.
 	s.timeoutHandler = timeoutHandler
 
-	// If there aren't any confirmations to be made then take the min
+	// If there aren't any confirmations to be made then take the Min
 	// time from the start.
 	timeout := max
 	if k < 1 {

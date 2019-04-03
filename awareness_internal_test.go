@@ -30,17 +30,17 @@ func TestNewAwareness(t *testing.T) {
 		max   int
 		score int
 	}{
-		"max-3": {
+		"Max-3": {
 			input: 3,
 			max:   3,
 			score: 0,
 		},
-		"max-5": {
+		"Max-5": {
 			input: 5,
 			max:   5,
 			score: 0,
 		},
-		"max-10": {
+		"Max-10": {
 			input: 10,
 			max:   10,
 			score: 0,

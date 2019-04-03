@@ -52,7 +52,7 @@ type PriorityMbrStatsMsgStore struct {
 	lock          sync.RWMutex
 }
 
-// macLocalCount is the max priority value
+// macLocalCount is the Max priority value
 func NewPriorityMbrStatsMsgStore(maxLocalCount int) *PriorityMbrStatsMsgStore {
 	return &PriorityMbrStatsMsgStore{
 		q:             make(PriorityQueue, 0),
@@ -70,7 +70,7 @@ func (p *PriorityMbrStatsMsgStore) Len() int {
 }
 
 // Initially, set the local count to zero.
-// If the queue size is max, delete the data with the highest localcount and insert it.
+// If the queue size is Max, delete the data with the highest localcount and insert it.
 func (p *PriorityMbrStatsMsgStore) Push(msg pb.MbrStatsMsg) {
 	p.lock.Lock()
 	defer p.lock.Unlock()

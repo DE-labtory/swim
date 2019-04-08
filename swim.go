@@ -26,8 +26,8 @@ import (
 
 	"sync/atomic"
 
+	"github.com/DE-labtory/iLogger"
 	"github.com/DE-labtory/swim/pb"
-	"github.com/it-chain/iLogger"
 	"github.com/rs/xid"
 )
 

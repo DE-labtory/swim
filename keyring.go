@@ -3,10 +3,10 @@ package swim
 import (
 	"os"
 
-	"github.com/it-chain/heimdall"
-	"github.com/it-chain/heimdall/config"
-	"github.com/it-chain/heimdall/hecdsa"
-	"github.com/it-chain/iLogger"
+	"github.com/DE-labtory/heimdall"
+	"github.com/DE-labtory/heimdall/config"
+	"github.com/DE-labtory/heimdall/hecdsa"
+	"github.com/DE-labtory/iLogger"
 )
 
 /*

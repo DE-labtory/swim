@@ -21,9 +21,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DE-labtory/iLogger"
 	"github.com/DE-labtory/swim/pb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/it-chain/iLogger"
 )
 
 var ErrSendTimeout = errors.New("Error send timeout")

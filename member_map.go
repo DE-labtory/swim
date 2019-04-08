@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DE-labtory/iLogger"
 	"github.com/DE-labtory/swim/pb"
-	"github.com/it-chain/iLogger"
 )
 
 var ErrEmptyMemberID = errors.New("MemberID is empty")

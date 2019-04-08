@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	"github.com/it-chain/iLogger"
+	"github.com/DE-labtory/iLogger"
 )
 
 type status = int32

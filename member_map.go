@@ -54,15 +54,15 @@ func (s Status) toInt() int32 {
 }
 
 type SuspicionConfig struct {
-	// k is the maximum number of independent confirmation's we'd like to see
-	// this value is for making timer to drive @min value
-	k int
+	// K is the maximum number of independent confirmation's we'd like to see
+	// this value is for making timer to drive @Min value
+	K int
 
-	// min is the minimum timer value
-	min time.Duration
+	// Min is the minimum timer value
+	Min time.Duration
 
-	// max is the maximum timer value
-	max time.Duration
+	// Max is the maximum timer value
+	Max time.Duration
 }
 
 type MemberID struct {
@@ -147,7 +147,7 @@ func NewMemberMap(config *SuspicionConfig) *MemberMap {
 	}
 }
 
-// Select K random member (length of returning member can be lower than k).
+// Select K random member (length of returning member can be lower than K).
 func (m *MemberMap) SelectKRandomMemberID(k int) []Member {
 
 	m.lock.Lock()
@@ -235,7 +235,7 @@ func (m *MemberMap) suspectWhenDead() (bool, error) {
 func (m *MemberMap) suspectWhenAlive(member *Member, confirmer string, incarnation uint32) (bool, error) {
 	config := m.suspicionConfig
 
-	suspicion, err := NewSuspicion(MemberID{confirmer}, config.k, config.min, config.max, getSuspicionCallback(m, member))
+	suspicion, err := NewSuspicion(MemberID{confirmer}, config.K, config.Min, config.Max, getSuspicionCallback(m, member))
 	if err != nil {
 		return false, ErrCreatingSuspicion
 	}
@@ -251,7 +251,7 @@ func (m *MemberMap) suspectWhenSuspect(member *Member, confirmer string, incarna
 	config := m.suspicionConfig
 
 	if member.Suspicion == nil {
-		suspicion, err := NewSuspicion(MemberID{confirmer}, config.k, config.min, config.max, getSuspicionCallback(m, member))
+		suspicion, err := NewSuspicion(MemberID{confirmer}, config.K, config.Min, config.Max, getSuspicionCallback(m, member))
 		if err != nil {
 			return false, ErrCreatingSuspicion
 		}

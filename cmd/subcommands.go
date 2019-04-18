@@ -1,6 +1,8 @@
 package cmd
 
-import "github.com/urfave/cli"
+import (
+	"github.com/urfave/cli"
+)
 
 var startCmd = cli.Command{
 	Name:  "start",

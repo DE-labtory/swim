@@ -5,6 +5,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/DE-labtory/swim/cmd/common"
+	"github.com/DE-labtory/swim/conf"
+
 	"github.com/urfave/cli"
 )
 
@@ -34,8 +37,13 @@ func main() {
 	app.Commands = append(app.Commands, Cmd()...)
 
 	app.Before = func(c *cli.Context) error {
-		// config
-		// debug
+		if configPath := c.String("config"); configPath != "" {
+			absPath, err := common.RelativeToAbsolutePath(configPath)
+			if err != nil {
+				return err
+			}
+			conf.SetConfigPath(absPath)
+		}
 		return nil
 	}
 	err := app.Run(os.Args)

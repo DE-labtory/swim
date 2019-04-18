@@ -37,7 +37,7 @@ func TestAwareness_ApplyDelta(t *testing.T) {
 			delta: -3,
 			score: 0,
 		},
-		"max score": {
+		"Max score": {
 			max:   5,
 			delta: 10,
 			score: 4,

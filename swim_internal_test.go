@@ -1193,7 +1193,7 @@ func TestSWIM_ping_When_Response_Failed(t *testing.T) {
 	assert.Error(t, err, ErrSendTimeout)
 }
 
-// test when one of k-members response with other than ACK or NACK
+// test when one of K-members response with other than ACK or NACK
 func TestSWIM_indirectProbe_When_Successfully_Probed(t *testing.T) {
 	mIAddr := "127.0.0.1:11184"
 	mJAddr := "127.0.0.1:11183"
@@ -1631,9 +1631,9 @@ func TestSWIM_probe_When_Target_Respond_To_Ping(t *testing.T) {
 	}
 
 	mm := NewMemberMap(&SuspicionConfig{
-		k:   2,
-		min: time.Hour,
-		max: time.Hour * 8,
+		K:   2,
+		Min: time.Hour,
+		Max: time.Hour * 8,
 	})
 
 	mI := &Member{
@@ -1743,9 +1743,9 @@ func TestSWIM_probe_When_Target_Respond_To_Indirect_Ping(t *testing.T) {
 	m2Member := &Member{ID: MemberID{ID: "m2"}, Addr: net.ParseIP("127.0.0.1"), Port: 13164, Status: Alive}
 
 	mm := NewMemberMap(&SuspicionConfig{
-		k:   2,
-		min: time.Hour,
-		max: time.Hour * 8,
+		K:   2,
+		Min: time.Hour,
+		Max: time.Hour * 8,
 	})
 	mm.members[m1Member.ID] = m1Member
 	mm.members[m2Member.ID] = m2Member
